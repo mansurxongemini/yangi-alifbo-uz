@@ -10,12 +10,11 @@ export const Footer: React.FC<FooterProps> = ({ onOpenHelp, onOpenContact }) => 
   return (
     <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-panel)] py-5 mt-auto transition-colors">
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-[var(--text-secondary)]">
-        
+
         {/* Brand / Copyright */}
         <div className="text-center md:text-left select-none">
           <span className="font-semibold text-[var(--text-primary)]">Oʻzbek Lotin Alifbosi</span>
           <span className="mx-2 text-[var(--border-subtle)]">&middot;</span>
-          <span className="text-[var(--text-tertiary)]">100% Oflayn va maxfiy</span>
         </div>
 
         {/* Apple-style Minimalist Links */}
@@ -27,7 +26,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenHelp, onOpenContact }) => 
           >
             Alifbo jadvali
           </button>
-          
+
           <button
             type="button"
             onClick={() => onOpenHelp?.('rules')}

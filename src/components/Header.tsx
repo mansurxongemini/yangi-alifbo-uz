@@ -11,10 +11,10 @@ export const Header: React.FC<Props> = ({ onOpenTable, isDark, toggleTheme }) =>
   return (
     <header className="border-b border-[var(--border-subtle)] bg-[var(--bg-panel)] sticky top-0 z-40 transition-colors">
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-        
+
         {/* Brand / Logo */}
         <div className="flex items-center gap-3">
-          <div 
+          <div
             className="w-9 h-9 rounded-xl bg-[#1EA0D2] flex items-center justify-center text-white font-bold font-sans text-sm select-none shrink-0 shadow-xs"
             aria-hidden="true"
           >
@@ -23,12 +23,6 @@ export const Header: React.FC<Props> = ({ onOpenTable, isDark, toggleTheme }) =>
           <h1 className="text-base sm:text-lg font-bold tracking-tight text-[var(--text-primary)]">
             Oʻzbek Alifbosi
           </h1>
-        </div>
-
-        {/* Center Minimal links (optional view) */}
-        <div className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--text-secondary)]">
-          <span className="hover:text-[var(--text-primary)] transition-colors cursor-default">Eski lotin</span>
-          <span className="hover:text-[var(--text-primary)] transition-colors cursor-default">Yangi lotin</span>
         </div>
 
         {/* Header Actions */}

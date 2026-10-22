@@ -301,16 +301,17 @@ export const Converter: React.FC<ConverterProps> = () => {
       {/* ===================== 1) REJIMLAR TANLASH (1-RASM USLUBIDAGI DROPDOWNLAR) ===================== */}
       <div className="bg-[var(--bg-panel)] rounded-2xl border border-[var(--border-subtle)] p-2 shadow-xs flex items-center justify-between gap-2 sm:gap-4 transition-colors">
         
-        {/* Chap: Manba dropdown va fayl ikonkasi */}
+        {/* Chap: Manba dropdown va alohida Fayl yuklash tugmasi */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 sm:px-2.5 sm:py-2 text-[var(--text-secondary)] hover:text-[#1EA0D2] bg-[var(--bg-surface-raised)] hover:bg-[#1EA0D2]/10 border border-[var(--border-subtle)] rounded-xl transition-all cursor-pointer shrink-0"
-            title="Fayl yuklash (.docx, .txt, .zip)"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#1EA0D2] bg-[#1EA0D2]/10 hover:bg-[#1EA0D2]/20 border border-[#1EA0D2]/30 rounded-xl transition-all cursor-pointer shrink-0"
+            title="Word (.docx), Matn (.txt) yoki ZIP (.zip) fayl yuklash"
             aria-label="Fayl yuklash"
           >
-            <FileText className="w-4 h-4 text-[#1EA0D2]" />
+            <Upload className="w-4 h-4 text-[#1EA0D2]" />
+            <span className="hidden sm:inline">Fayl yuklash</span>
           </button>
 
           <div className="relative flex-1 max-w-[260px]">
@@ -376,7 +377,7 @@ export const Converter: React.FC<ConverterProps> = () => {
           {/* ===================== CHAP PANEL (KIRITISH) ===================== */}
           <div className="flex flex-col p-4 sm:p-5 relative">
             
-            {/* Yuqori: 1-rasmdagi toza keycap harflar */}
+            {/* Yuqori: Keycap harflar */}
             {!uploadedFile && (
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-4">
                 {KEYCAP_LETTERS.map((item, idx) => (

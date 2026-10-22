@@ -91,4 +91,13 @@
 35. [DONE] Brauzerda sinash, testlar (19/19) va build xatosizligini tekshirish hamda GitHub ga yangilab push qilish.
    - *Proof:* `npm run build && npm test` 19/19 muvaffaqiyatli oʻtdi, oʻzgarishlar GitHub repozitoriyasiga push qilindi.
 
+## 10-bosqich: Fayl yuklash tugmasini alohida va koʻzga tashlanadigan qilib joylashtirish
+36. [DONE] Rejimlar barida alohida, aniq koʻrinadigan «Fayl yuklash» tugmasini joylashtirish hamda keycap harflar qatorini bir tekisda toza saqlash.
+   - *Proof:* `Converter.tsx` da alohida aksentli `Fayl yuklash` tugmasi oʻrnatildi, keycaplar qatori 1 qatorga moslandi.
+37. [DONE] Brauzerda tekshirish, skrinshot olish, testlar (19/19) va GitHub ga push qilish.
+   - *Proof:* Brauzerda tekshirildi, `screenshots/separate_upload_button_v2.png` va `separate_upload_button_v2_dark.png` saqlandi, build va 19/19 testlar yashil.
+
+## 11-bosqich: Sayt uchun domen nomlari takliflari
+38. [DONE] Loyihaning mohiyati, auditoriyasi va yo'nalishlaridan kelib chiqib 10 ta eng qulay, jarangdor va esda qolarli domen nomlarini ishlab chiqish va tavsiya qilish.
+   - *Proof:* 10 ta saralangan domen (SEO, brending, xalqchillik va zamonaviy TLD bo'yicha tahlil qilingan holda) batafsil tavsif bilan foydalanuvchiga taqdim etildi.
 
