@@ -77,7 +77,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                 <BookOpen className="w-4 h-4" />
               </div>
               <h2 className="text-base font-bold tracking-tight text-[var(--text-primary)]">
-                Qoʻllanma va Standartlar
+                Qöllanma va Standartlar
               </h2>
             </div>
 
@@ -85,7 +85,7 @@ export const HelpGuideModal: React.FC<Props> = ({
               type="button"
               onClick={onClose}
               className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] rounded-xl transition-colors cursor-pointer"
-              aria-label="Yopish"
+              aria-label="Yopiş"
             >
               <X className="w-4 h-4" />
             </button>
@@ -153,7 +153,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Harf yoki talaffuz boʻyicha qidirish..."
+                  placeholder="Harf yoki talaffuz böyiça qidiriş..."
                   className="w-full bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl py-2 pl-9 pr-3 text-xs sm:text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[#1EA0D2]"
                 />
               </div>
@@ -215,9 +215,9 @@ export const HelpGuideModal: React.FC<Props> = ({
               <div className="p-4 rounded-xl bg-[#1EA0D2]/10 border border-[#1EA0D2]/25 text-[var(--text-primary)] flex items-start gap-3">
                 <Sparkles className="w-5 h-5 text-[#1EA0D2] shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-bold text-sm">Oʻzbekiston Respublikasi rasmiy alifbo islohoti</h4>
+                  <h4 className="font-bold text-sm">Özbekiston Respublikasi rasmiy alifbo islohoti</h4>
                   <p className="text-xs mt-1 text-[var(--text-secondary)]">
-                    Takomillashtirilgan alifboda qoʻshaloq va noqulay apostrofli 4 ta harf xalqaro standartdagi diakritik harflarga almashtirildi.
+                    Takomillaştirilgan alifboda qöşaloq va noqulay apostrofli 4 ta harf xalqaro standartdagi diakritik harflarga almaştirildi.
                   </p>
                 </div>
               </div>
@@ -226,7 +226,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-base text-[#1EA0D2]">Ö ö</span>
-                    <span className="text-[11px] text-[var(--text-tertiary)]">Oʻ oʻ oʻrniga</span>
+                    <span className="text-[11px] text-[var(--text-tertiary)]">Oʻ oʻ örniga</span>
                   </div>
                   <p className="text-xs">Misollar: <span className="font-semibold text-[var(--text-primary)]">ördek, böri, tögʻri &rarr; töğri</span></p>
                 </div>
@@ -234,7 +234,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-base text-[#1EA0D2]">Ğ ğ</span>
-                    <span className="text-[11px] text-[var(--text-tertiary)]">Gʻ gʻ oʻrniga</span>
+                    <span className="text-[11px] text-[var(--text-tertiary)]">Gʻ gʻ örniga</span>
                   </div>
                   <p className="text-xs">Misollar: <span className="font-semibold text-[var(--text-primary)]">ğalaba, togʻ &rarr; toğ, bağʻir &rarr; bağir</span></p>
                 </div>
@@ -242,7 +242,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-base text-[#1EA0D2]">Ş ş</span>
-                    <span className="text-[11px] text-[var(--text-tertiary)]">Sh sh oʻrniga</span>
+                    <span className="text-[11px] text-[var(--text-tertiary)]">Sh sh örniga</span>
                   </div>
                   <p className="text-xs">Misollar: <span className="font-semibold text-[var(--text-primary)]">şahar, quyoş, başqa</span></p>
                 </div>
@@ -250,7 +250,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-base text-[#1EA0D2]">Ç ç</span>
-                    <span className="text-[11px] text-[var(--text-tertiary)]">Ch ch oʻrniga</span>
+                    <span className="text-[11px] text-[var(--text-tertiary)]">Ch ch örniga</span>
                   </div>
                   <p className="text-xs">Misollar: <span className="font-semibold text-[var(--text-primary)]">çoy, aççiq, çiroq</span></p>
                 </div>
@@ -262,7 +262,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                   <span>Tutuq belgisi (ʼ) saqlanib qoldi:</span>
                 </h5>
                 <p className="text-xs">
-                  Tutuq belgisi (<span className="font-semibold text-[var(--text-primary)]">ʼ</span> - U+02BC) mustaqil belgi sifatida oʻz oʻrnida qoladi.
+                  Tutuq belgisi (<span className="font-semibold text-[var(--text-primary)]">ʼ</span> - U+02BC) mustaqil belgi sifatida öz örnida qoladi.
                   Misollar: <span className="font-semibold text-[var(--text-primary)]">aʼlo, maʼno, taʼlim, Isʼhoq</span>.
                 </p>
               </div>
@@ -284,24 +284,24 @@ export const HelpGuideModal: React.FC<Props> = ({
                   <li>Jadvallar, ustunlar va qatorlar;</li>
                   <li>Qalin (bold), kursiv (italic), tagiga chizilgan stillar;</li>
                   <li>Shrift turlari va ranglari;</li>
-                  <li>Paragraflar, sarlavhalar va tasvirlar <strong>100% oʻz holida saqlanadi</strong>.</li>
+                  <li>Paragraflar, sarlavhalar va tasvirlar <strong>100% öz holida saqlanadi</strong>.</li>
                 </ul>
               </div>
 
               <div className="p-4 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-2">
                 <h4 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
                   <FileText className="w-4 h-4 text-[#1EA0D2]" />
-                  <span>ZIP arxivlari bilan ishlash</span>
+                  <span>ZIP arxivlari bilan işlaş</span>
                 </h4>
                 <p className="text-xs">
-                  Agar siz koʻplab fayllardan iborat <strong>.zip</strong> arxiv yuklasangiz, ilova arxiv ichidagi barcha <code>.docx</code> va <code>.txt</code> fayllarni oʻgirib, yangi arxiv holida yoki har bir faylni alohida yuklab beradi.
+                  Agar siz köplab fayllardan iborat <strong>.zip</strong> arxiv yuklasangiz, ilova arxiv içidagi barça <code>.docx</code> va <code>.txt</code> fayllarni ögirib, yangi arxiv holida yoki har bir faylni alohida yuklab beradi.
                 </p>
               </div>
 
               <div className="p-4 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-1.5">
                 <h4 className="font-bold text-sm text-[var(--text-primary)]">Qanday foydalaniladi?</h4>
                 <p className="text-xs">
-                  Faylni shunchaki brauzer oynasiga sudrab tashlang (Drag & Drop) yoki tepada joylashgan hujjat belgisini bosing.
+                  Faylni şunçaki brauzer oynasiga sudrab taşlang (Drag & Drop) yoki tepada joylaşgan Fayl yuklaş tugmasini bosing.
                 </p>
               </div>
             </div>
@@ -313,17 +313,17 @@ export const HelpGuideModal: React.FC<Props> = ({
               <div className="p-4 rounded-xl bg-[var(--success)]/10 border border-[var(--success)]/25 text-[var(--text-primary)] flex items-start gap-3">
                 <ShieldCheck className="w-5 h-5 text-[var(--success)] shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-bold text-sm">Toʻliq Maxfiylik va Oflayn Ishlash Kafolati</h4>
+                  <h4 className="font-bold text-sm">Töliq Maxfiylik va Oflayn İşlaş Kafolati</h4>
                   <p className="text-xs mt-1 text-[var(--text-secondary)]">
-                    Ushbu ilova 100% mijoz brauzerida (client-side) ishlaydi. Siz kiritgan matnlar yoki yuklagan fayllar hech qachon hech qanday serverga yuborilmaydi.
+                    Uşbu ilova 100% mijoz brauzerida (client-side) işlaydi. Siz kiritgan matnlar yoki yuklagan fayllar heç qaçon heç qanday serverga yuborilmaydi.
                   </p>
                 </div>
               </div>
 
               <div className="p-4 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-2">
-                <h5 className="font-bold text-[var(--text-primary)]">Tashqi ulanishlar yoʻq:</h5>
+                <h5 className="font-bold text-[var(--text-primary)]">Taşqi ulanişlar yöq:</h5>
                 <p className="text-xs">
-                  Ilovada hech qanday tashqi analitika, reklama, tashqi CDN yoki Google Fonts ulanishlari mavjud emas. Shriftlar va barcha kutubxonalar dastur ichida mustaqil joylashgan. Internet tarmogʻi uzilgan taqdirda ham ilovadan toʻliq foydalanish mumkin.
+                  Ilovada heç qanday taşqi analitika, reklama, taşqi CDN yoki Google Fonts ulanişlari mavjud emas. Şriftlar va barça kutubxonalar dastur içida mustaqil joylaşgan. Internet tarmoği uzilgan taqdirda ham ilovadan töliq foydalaniş mumkin.
                 </p>
               </div>
             </div>
@@ -334,14 +334,14 @@ export const HelpGuideModal: React.FC<Props> = ({
         {/* Modal Footer */}
         <div className="px-5 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-surface-raised)]/30 flex items-center justify-between">
           <span className="text-[11px] text-[var(--text-tertiary)]">
-            Oʻzbekiston Respublikasi &middot; Rasmiy imlo standarti
+            Özbekiston Respublikasi &middot; Rasmiy imlo standarti
           </span>
           <button
             type="button"
             onClick={onClose}
             className="px-4 py-1.5 rounded-xl bg-[var(--bg-surface-raised)] hover:bg-[var(--border-subtle)] border border-[var(--border-subtle)] text-xs font-medium text-[var(--text-primary)] transition-all cursor-pointer"
           >
-            Tushundim
+            Tuşundim
           </button>
         </div>
 

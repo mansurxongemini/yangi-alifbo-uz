@@ -21,7 +21,7 @@ export const Header: React.FC<Props> = ({ onOpenTable, isDark, toggleTheme }) =>
             Öğ
           </div>
           <h1 className="text-base sm:text-lg font-bold tracking-tight text-[var(--text-primary)]">
-            Oʻzbek Alifbosi
+            Özbek Alifbosi
           </h1>
         </div>
 
@@ -41,8 +41,8 @@ export const Header: React.FC<Props> = ({ onOpenTable, isDark, toggleTheme }) =>
             type="button"
             onClick={toggleTheme}
             className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1EA0D2] focus-visible:outline-none"
-            aria-label={isDark ? "Yorugʻ rejimga oʻtish" : "Qorongʻi rejimga oʻtish"}
-            title={isDark ? "Yorugʻ rejimga oʻtish" : "Qorongʻi rejimga oʻtish"}
+            aria-label={isDark ? "Yoruğ rejimga ötiş" : "Qoronği rejimga ötiş"}
+            title={isDark ? "Yoruğ rejimga ötiş" : "Qoronği rejimga ötiş"}
           >
             {isDark ? (
               <Sun className="w-4 h-4 text-[#F59E0B]" />

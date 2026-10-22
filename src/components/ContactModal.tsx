@@ -51,7 +51,7 @@ export const ContactModal: React.FC<Props> = ({ isOpen, onClose }) => {
             type="button"
             onClick={onClose}
             className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] rounded-xl transition-colors cursor-pointer"
-            aria-label="Yopish"
+            aria-label="Yopiş"
           >
             <X className="w-4 h-4" />
           </button>
@@ -60,7 +60,7 @@ export const ContactModal: React.FC<Props> = ({ isOpen, onClose }) => {
         {/* Body */}
         <div className="p-5 space-y-4 select-text">
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
-            Ilovani yanada takomillashtirish boʻyicha takliflaringiz yoki xatoliklar haqida xabar berish uchun quyidagi kanallardan foydalanishingiz mumkin:
+            Ilovani yanada takomillaştiriş böyiça takliflaringiz yoki xatoliklar haqida xabar beriş uçun quyidagi kanallardan foydalanişingiz mumkin:
           </p>
 
           {/* Aloqa kartalari */}
@@ -91,7 +91,7 @@ export const ContactModal: React.FC<Props> = ({ isOpen, onClose }) => {
               <div className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-[#1EA0D2]" />
                 <div>
-                  <p className="text-xs font-semibold text-[var(--text-primary)]">Elektron pochta</p>
+                  <p className="text-xs font-semibold text-[var(--text-primary)]">Elektron poçta</p>
                   <p className="text-[11px] text-[var(--text-tertiary)]">r.mansurxon01@gmail.com</p>
                 </div>
               </div>

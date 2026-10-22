@@ -101,3 +101,11 @@
 38. [DONE] Loyihaning mohiyati, auditoriyasi va yo'nalishlaridan kelib chiqib 10 ta eng qulay, jarangdor va esda qolarli domen nomlarini ishlab chiqish va tavsiya qilish.
    - *Proof:* 10 ta saralangan domen (SEO, brending, xalqchillik va zamonaviy TLD bo'yicha tahlil qilingan holda) batafsil tavsif bilan foydalanuvchiga taqdim etildi.
 
+## 12-bosqich: Saytning barcha UI yozuvlarini yangi alifbo (Ö, Ğ, Ş, Ç, ʼ) asosida yozish
+39. [DONE] Saytning barcha interfeys matnlari (Header, Converter, Footer, Modallar, index.html)ni yangi lotin alifbosi imlosiga oʻtkazish.
+   - *Proof:* `Header.tsx`, `Converter.tsx`, `Footer.tsx`, `HelpGuideModal.tsx`, `ContactModal.tsx`, `index.html` toʻliq yangi imloga oʻtkazildi.
+40. [DONE] Vitest testlarini (19/19) va buildni tekshirish (transliteratsiya mantigʻiga ziyon yetmagan holda).
+   - *Proof:* `npm run build && npm test` 100% muvaffaqiyatli oʻtdi (19/19 unit testlar yashil, tsc 0 xato).
+41. [DONE] Brauzerda yangi imlodagi matnlarni vizual koʻrib chiqish, skrinshot olish va GitHub ga push qilish.
+   - *Proof:* Brauzerda tekshirildi, `screenshots/new_alphabet_ui_home.png`, `new_alphabet_ui_modal.png` va `new_alphabet_ui_dark.png` saqlandi, GitHub ga push qilindi.
+

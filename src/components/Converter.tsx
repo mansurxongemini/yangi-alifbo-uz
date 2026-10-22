@@ -40,18 +40,17 @@ interface UploadedFileInfo {
   extension: string;
 }
 
-// 1-rasmdagi minimalist keycap harflari:
-// Oʻ Gʻ Ş Ç   oʻ gʻ ş ç   ʻ ʼ -
+// 1-rasmdagi minimalist keycap harflari (Yangi alifbo):
+// Ö Ğ Ş Ç   ö ğ ş ç   ʼ -
 const KEYCAP_LETTERS = [
-  { label: 'Oʻ', char: 'Oʻ' },
-  { label: 'Gʻ', char: 'Gʻ' },
+  { label: 'Ö', char: 'Ö' },
+  { label: 'Ğ', char: 'Ğ' },
   { label: 'Ş', char: 'Ş' },
   { label: 'Ç', char: 'Ç' },
-  { label: 'oʻ', char: 'oʻ' },
-  { label: 'gʻ', char: 'gʻ' },
+  { label: 'ö', char: 'ö' },
+  { label: 'ğ', char: 'ğ' },
   { label: 'ş', char: 'ş' },
   { label: 'ç', char: 'ç' },
-  { label: 'ʻ', char: 'ʻ' },
   { label: 'ʼ', char: 'ʼ' },
   { label: '-', char: '-' },
 ];
@@ -247,7 +246,7 @@ export const Converter: React.FC<ConverterProps> = () => {
       );
       setConvertResult(res);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Faylni oʻgirishda xatolik yuz berdi.';
+      const msg = err instanceof Error ? err.message : 'Faylni ögirişda xatolik yuz berdi.';
       setConvertError(msg);
     } finally {
       setIsConvertingFile(false);
@@ -307,11 +306,11 @@ export const Converter: React.FC<ConverterProps> = () => {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#1EA0D2] bg-[#1EA0D2]/10 hover:bg-[#1EA0D2]/20 border border-[#1EA0D2]/30 rounded-xl transition-all cursor-pointer shrink-0"
-            title="Word (.docx), Matn (.txt) yoki ZIP (.zip) fayl yuklash"
-            aria-label="Fayl yuklash"
+            title="Word (.docx), Matn (.txt) yoki ZIP (.zip) fayl yuklaş"
+            aria-label="Fayl yuklaş"
           >
             <Upload className="w-4 h-4 text-[#1EA0D2]" />
-            <span className="hidden sm:inline">Fayl yuklash</span>
+            <span className="hidden sm:inline">Fayl yuklaş</span>
           </button>
 
           <div className="relative flex-1 max-w-[260px]">
@@ -320,7 +319,7 @@ export const Converter: React.FC<ConverterProps> = () => {
               onChange={(e) => handleSourceChange(e.target.value as SourceScript)}
               className="w-full appearance-none bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] hover:border-[#1EA0D2]/40 text-[var(--text-primary)] text-xs sm:text-sm font-medium rounded-xl py-2 pl-3 pr-8 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1EA0D2]"
             >
-              <option value="auto">Avto-aniqlash</option>
+              <option value="auto">Avto-aniqlaş</option>
               <option value="eski_lotin">Eski lotin</option>
               <option value="cyrillic">Kirill</option>
               <option value="new_latin">Yangi lotin</option>
@@ -334,8 +333,8 @@ export const Converter: React.FC<ConverterProps> = () => {
           type="button"
           onClick={handleSwap}
           className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#1EA0D2] hover:bg-[#198cb8] text-white flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
-          title="Yoʻnalishni almashtirish"
-          aria-label="Yoʻnalishni almashtirish"
+          title="Yönalişni almaştiriş"
+          aria-label="Yönalişni almaştiriş"
         >
           <ArrowRightLeft className="w-4 h-4" />
         </button>
@@ -386,7 +385,7 @@ export const Converter: React.FC<ConverterProps> = () => {
                     type="button"
                     onClick={() => insertChar(item.char)}
                     className="h-8 min-w-[32px] px-2 rounded-lg bg-[var(--bg-surface-raised)] hover:bg-[var(--accent-subtle)] border border-[var(--border-subtle)] hover:border-[#1EA0D2]/40 text-xs sm:text-sm font-medium text-[var(--text-primary)] transition-all cursor-pointer shadow-2xs active:scale-95"
-                    title={`${item.label} harfini kiritish`}
+                    title={`${item.label} harfini kiritiş`}
                   >
                     {item.label}
                   </button>
@@ -422,7 +421,7 @@ export const Converter: React.FC<ConverterProps> = () => {
                       type="button"
                       onClick={handleClearFile}
                       className="p-1.5 text-[var(--text-secondary)] hover:text-red-500 rounded-lg transition-colors cursor-pointer"
-                      title="Faylni bekor qilish"
+                      title="Faylni bekor qiliş"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -434,7 +433,7 @@ export const Converter: React.FC<ConverterProps> = () => {
                     </p>
                   )}
 
-                  {/* Oʻgirish tugmasi */}
+                  {/* Ögiriş tugmasi */}
                   {!convertResult && (
                     <button
                       type="button"
@@ -445,10 +444,10 @@ export const Converter: React.FC<ConverterProps> = () => {
                       {isConvertingFile ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Oʻgirilmoqda...</span>
+                          <span>Ögirilmoqda...</span>
                         </>
                       ) : (
-                        <span>Oʻgirish</span>
+                        <span>Ögiriş</span>
                       )}
                     </button>
                   )}
@@ -456,7 +455,7 @@ export const Converter: React.FC<ConverterProps> = () => {
                   {convertResult && (
                     <div className="flex items-center gap-2 text-xs font-medium text-[var(--success)] bg-[var(--success)]/10 p-2 rounded-lg border border-[var(--success)]/20">
                       <CheckCircle2 className="w-4 h-4 shrink-0" />
-                      <span>Fayl muvaffaqiyatli oʻgirildi!</span>
+                      <span>Fayl muvaffaqiyatli ögirildi!</span>
                     </div>
                   )}
 
@@ -468,7 +467,7 @@ export const Converter: React.FC<ConverterProps> = () => {
                 ref={textareaRef}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Matnni shu yerga yozing..."
+                placeholder="Matnni şu yerga yozing..."
                 className="w-full flex-1 min-h-[320px] bg-transparent resize-none border-0 p-0 text-base sm:text-lg text-[var(--text-primary)] placeholder-[var(--text-tertiary)] leading-relaxed focus:outline-none"
                 spellCheck="false"
               />
@@ -486,8 +485,8 @@ export const Converter: React.FC<ConverterProps> = () => {
                 onClick={handleCopy}
                 disabled={!outputText && !convertResult}
                 className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Nusxalash"
-                aria-label="Nusxalash"
+                title="Nusxalaş"
+                aria-label="Nusxalaş"
               >
                 {copied ? <Check className="w-4 h-4 text-[var(--success)]" /> : <Copy className="w-4 h-4" />}
               </button>
@@ -503,8 +502,8 @@ export const Converter: React.FC<ConverterProps> = () => {
                 }}
                 disabled={!outputText && !convertResult}
                 className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Yuklab olish"
-                aria-label="Yuklab olish"
+                title="Yuklab oliş"
+                aria-label="Yuklab oliş"
               >
                 <Download className="w-4 h-4 text-[#1EA0D2]" />
               </button>
@@ -540,14 +539,14 @@ export const Converter: React.FC<ConverterProps> = () => {
                     className="w-full py-2.5 px-4 rounded-xl bg-[#1EA0D2] hover:bg-[#198cb8] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
                   >
                     <Download className="w-4 h-4" />
-                    <span>{convertResult.isArchive ? 'Arxivni (.zip) yuklab olish' : 'Faylni yuklab olish'}</span>
+                    <span>{convertResult.isArchive ? 'Arxivni (.zip) yuklab oliş' : 'Faylni yuklab oliş'}</span>
                   </button>
 
                   {/* Agar ZIP arxiv boʻlsa: Har bir faylni alohida yuklab olish roʻyxati */}
                   {convertResult.isArchive && convertResult.archiveItems && convertResult.archiveItems.length > 0 && (
                     <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
                       <p className="text-xs font-semibold text-[var(--text-secondary)]">
-                        Ichidagi fayllarni alohida yuklab olish:
+                        Içidagi fayllarni alohida yuklab oliş:
                       </p>
                       <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
                         {convertResult.archiveItems.map((item: ConvertedItem, i: number) => (
@@ -562,7 +561,7 @@ export const Converter: React.FC<ConverterProps> = () => {
                               type="button"
                               onClick={() => downloadBlob(item.blob, item.filename)}
                               className="p-1 text-[#1EA0D2] hover:bg-[#1EA0D2]/10 rounded transition-colors cursor-pointer ml-2 shrink-0"
-                              title="Ushbu faylni yuklab olish"
+                              title="Uşbu faylni yuklab oliş"
                             >
                               <Download className="w-3.5 h-3.5" />
                             </button>
@@ -579,7 +578,7 @@ export const Converter: React.FC<ConverterProps> = () => {
               <textarea
                 readOnly
                 value={outputText}
-                placeholder="Oʻgirilgan matn bu yerda aks etadi..."
+                placeholder="Ögirilgan matn bu yerda aks etadi..."
                 className="w-full flex-1 min-h-[320px] bg-transparent resize-none border-0 p-0 text-base sm:text-lg text-[var(--text-primary)] placeholder-[var(--text-tertiary)] leading-relaxed focus:outline-none"
                 spellCheck="false"
               />
@@ -594,7 +593,7 @@ export const Converter: React.FC<ConverterProps> = () => {
           <div className="absolute inset-0 z-30 bg-[var(--bg-panel)]/95 backdrop-blur-xs flex flex-col items-center justify-center border-2 border-dashed border-[#1EA0D2] rounded-2xl m-2">
             <Upload className="w-10 h-10 text-[#1EA0D2] mb-2 animate-bounce" />
             <p className="text-base font-semibold text-[var(--text-primary)]">
-              Faylni shu yerga tashlang
+              Faylni şu yerga taşlang
             </p>
             <p className="text-xs text-[var(--text-secondary)] mt-1">
               Word (.docx), Matn (.txt) yoki ZIP (.zip) arxivlari

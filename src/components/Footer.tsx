@@ -13,7 +13,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenHelp, onOpenContact }) => 
 
         {/* Brand / Copyright */}
         <div className="text-center md:text-left select-none">
-          <span className="font-semibold text-[var(--text-primary)]">Oʻzbek Lotin Alifbosi</span>
+          <span className="font-semibold text-[var(--text-primary)]">Özbek Lotin Alifbosi</span>
           <span className="mx-2 text-[var(--border-subtle)]">&middot;</span>
         </div>
 
