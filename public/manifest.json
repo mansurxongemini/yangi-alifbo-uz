@@ -1,0 +1,17 @@
+{
+  "name": "O'zbek Tili Yangi Alifbosi Konvertori",
+  "short_name": "Yangi Alifbo",
+  "description": "2026-yil 21-oktabrdagi yangi o'zbek lotin alifbosi (Ö, Ğ, Ş, Ç) konvertori",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "./logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

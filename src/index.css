@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-app: #F7F8FA;
+    --bg-panel: #FFFFFF;
+    --bg-surface-raised: #F0F2F5;
+    --border-subtle: rgba(0, 0, 0, 0.08);
+    --border-hover: rgba(0, 0, 0, 0.16);
+    --text-primary: #111318;
+    --text-secondary: #5F6672;
+    --text-tertiary: #8C93A0;
+    
+    /* Aksent: Oq fonda AA talabi uchun toʻqroq moviy (5.1:1 AA pass) */
+    --accent: #0A6E99;
+    --accent-hover: #085577;
+    --accent-subtle: rgba(10, 110, 153, 0.08);
+    --accent-text-on: #FFFFFF;
+    
+    --success: #16A34A;
+    --danger: #DC2626;
+  }
+
+  .dark {
+    --bg-app: #0B0D10;
+    --bg-panel: #12151A;
+    --bg-surface-raised: #191D23;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(255, 255, 255, 0.14);
+    --text-primary: #ECEEF1;
+    --text-secondary: #A3A9B3;
+    --text-tertiary: #6B7280;
+    
+    /* Aksent: Qorongʻi fonda moviy (8.6:1 AA pass) */
+    --accent: #1EA0D2;
+    --accent-hover: #38B4E3;
+    --accent-subtle: rgba(30, 160, 210, 0.12);
+    /* #1EA0D2 fonli tugmada oq matn AA dan oʻtmaydi, shuning uchun toʻq matn */
+    --accent-text-on: #0B0D10;
+    
+    --success: #22C55E;
+    --danger: #EF4444;
+  }
+
+  body {
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Tabular numbers for counters */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Subtle, crisp scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.32);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
