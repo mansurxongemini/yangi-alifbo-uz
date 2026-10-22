@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Converter } from './components/Converter';
 import { Footer } from './components/Footer';
-import { AlphabetTableModal } from './components/AlphabetTableModal';
+import { HelpGuideModal, HelpTab } from './components/HelpGuideModal';
+import { ContactModal } from './components/ContactModal';
 
 export const App: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -14,7 +15,9 @@ export const App: React.FC = () => {
     return false;
   });
 
-  const [isTableOpen, setIsTableOpen] = useState<boolean>(false);
+  const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
+  const [helpTab, setHelpTab] = useState<HelpTab>('table');
+  const [isContactOpen, setIsContactOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (isDark) {
@@ -30,23 +33,39 @@ export const App: React.FC = () => {
     setIsDark((prev) => !prev);
   };
 
+  const handleOpenHelp = (tab: HelpTab = 'table') => {
+    setHelpTab(tab);
+    setIsHelpOpen(true);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] font-sans transition-colors duration-200">
       <Header
-        onOpenTable={() => setIsTableOpen(true)}
+        onOpenTable={() => handleOpenHelp('table')}
         isDark={isDark}
         toggleTheme={toggleTheme}
       />
       
       <main className="flex-1 flex flex-col justify-center">
-        <Converter onOpenTable={() => setIsTableOpen(true)} />
+        <Converter onOpenTable={() => handleOpenHelp('table')} />
       </main>
 
-      <Footer />
+      <Footer
+        onOpenHelp={handleOpenHelp}
+        onOpenContact={() => setIsContactOpen(true)}
+      />
 
-      <AlphabetTableModal
-        isOpen={isTableOpen}
-        onClose={() => setIsTableOpen(false)}
+      {/* Apple/Google darajasidagi Yordam va Qoʻllanma modali */}
+      <HelpGuideModal
+        isOpen={isHelpOpen}
+        initialTab={helpTab}
+        onClose={() => setIsHelpOpen(false)}
+      />
+
+      {/* Aloqa va Takliflar modali */}
+      <ContactModal
+        isOpen={isContactOpen}
+        onClose={() => setIsContactOpen(false)}
       />
     </div>
   );

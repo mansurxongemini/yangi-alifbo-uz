@@ -70,7 +70,25 @@
    - *Proof:* Brauzerda minimalist dizayn va inline fayl yuklash/oʻgirish/yuklab olish sinovdan oʻtkazildi. Skrinshotlar saqlandi: `screenshots/minimalist_view.png` va `screenshots/inline_file_conversion.png`. Konsol toza, 19/19 testlar muvaffaqiyatli.
 
 ## 8-bosqich: Production Ready qilish va GitHub ga yuklash
-27. [TODO] .gitignore faylini toʻliq tekshirish va yaratish (node_modules, dist, vaqtinchalik va maxfiy fayllar kiritilmasligi uchun).
-28. [TODO] Professional README.md faylini yaratish (loyiha tavsifi, texnologiyalar, imkoniyatlar, oʻrnatish va ishga tushirish yoʻriqnomasi).
-29. [TODO] Production build va barcha testlarni qayta tekshirish (19/19 testlar va tsc xatosiz oʻtishi).
-30. [TODO] Git omborini yaratish, dastlabki kommitni qilish va GitHub ga yangi repozitoriy sifatida yuklash (push).
+27. [DONE] .gitignore faylini toʻliq tekshirish va yaratish (node_modules, dist, vaqtinchalik va maxfiy fayllar kiritilmasligi uchun).
+   - *Proof:* Toʻliq va xavfsiz `.gitignore` fayli yaratildi.
+28. [DONE] Professional README.md faylini yaratish (loyiha tavsifi, texnologiyalar, imkoniyatlar, oʻrnatish va ishga tushirish yoʻriqnomasi).
+   - *Proof:* `README.md` toʻliq imkoniyatlar, testlash va oʻrnatish yoʻriqnomasi bilan yaratildi.
+29. [DONE] Production build va barcha testlarni qayta tekshirish (19/19 testlar va tsc xatosiz oʻtishi).
+   - *Proof:* `npm run build && npm test` 100% muvaffaqiyatli oʻtdi (19/19 unit testlar yashil).
+30. [DONE] Git omborini yaratish, dastlabki kommitni qilish va GitHub ga yangi repozitoriy sifatida yuklash (push).
+   - *Proof:* https://github.com/mansurxongemini/yangi-alifbo-uz manzilida repozitoriy yaratildi va `main` tarmogʻiga toʻliq push qilindi.
+31. [DONE] GitHub repozitoriysini PRIVATE (yopiq) holatiga oʻtkazish.
+   - *Proof:* `gh repo edit --visibility private` bajarildi, `gh repo view` orqali `isPrivate: true, visibility: PRIVATE` tasdiqlandi.
+
+## 9-bosqich: Google & Apple darajasidagi Yordam, Aloqa va Tushuntirishlar
+32. [DONE] Apple/Google minimalist sheet uslubidagi Yordam va Qoʻllanma (HelpModal) tizimini yaratish (Alifbo jadvali, Islohot qoidalari, Fayllar bilan ishlash, Maxfiylik kafolati).
+   - *Proof:* `src/components/HelpGuideModal.tsx` yaratildi, 4 ta segmented kapsula tablari bilan toʻliq ishlaydi. Skrinshot: `screenshots/help_guide_modal.png`.
+33. [DONE] Aloqa va Fikr-mulohaza (Contact / Feedback Modal) oynasini yaratish (xatolik xabari, takliflar, Telegram va GitHub aloqalari).
+   - *Proof:* `src/components/ContactModal.tsx` yaratildi, Telegram, GitHub, Email kartalari va xatolik qoralamasi ulandi. Skrinshot: `screenshots/contact_modal.png`.
+34. [DONE] Apple-style toza va minimalist Footer navigatsiyasini yangilash (Jadval, Qoʻllanma, Aloqa, Maxfiylik).
+   - *Proof:* `src/components/Footer.tsx` nafis minimalist havolalar bilan boyitildi, asosiy ekranga xalaqit bermaydi.
+35. [DONE] Brauzerda sinash, testlar (19/19) va build xatosizligini tekshirish hamda GitHub ga yangilab push qilish.
+   - *Proof:* `npm run build && npm test` 19/19 muvaffaqiyatli oʻtdi, oʻzgarishlar GitHub repozitoriyasiga push qilindi.
+
+
