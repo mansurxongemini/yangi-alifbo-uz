@@ -59,25 +59,25 @@ export const HelpGuideModal: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md animate-in fade-in duration-150 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md select-none"
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-3xl max-h-[90vh] bg-[var(--bg-panel)] rounded-2xl border border-[var(--border-subtle)] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
+      <div className="w-full max-w-3xl max-h-[90vh] bg-[var(--bg-panel)] rounded-[20px] border border-[var(--border-subtle)] shadow-[var(--shadow-pop)] overflow-hidden flex flex-col rise">
         
         {/* Apple-style Modal Header */}
         <div className="px-5 pt-4 pb-3 border-b border-[var(--border-subtle)] bg-[var(--bg-surface-raised)]/40 flex flex-col gap-3">
           
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-[#1EA0D2]/15 text-[#1EA0D2] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-[var(--accent)]/15 text-[var(--accent)] flex items-center justify-center">
                 <BookOpen className="w-4 h-4" />
               </div>
               <h2 className="text-base font-bold tracking-tight text-[var(--text-primary)]">
-                Qöllanma va Standartlar
+                Qöllanma va standartlar
               </h2>
             </div>
 
@@ -98,7 +98,7 @@ export const HelpGuideModal: React.FC<Props> = ({
               onClick={() => setActiveTab('table')}
               className={`flex-1 py-1.5 px-3 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'table'
-                  ? 'bg-[#1EA0D2] text-white shadow-2xs'
+                  ? 'bg-[var(--accent)] text-[var(--accent-text-on)] shadow-2xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -109,7 +109,7 @@ export const HelpGuideModal: React.FC<Props> = ({
               onClick={() => setActiveTab('rules')}
               className={`flex-1 py-1.5 px-3 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'rules'
-                  ? 'bg-[#1EA0D2] text-white shadow-2xs'
+                  ? 'bg-[var(--accent)] text-[var(--accent-text-on)] shadow-2xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -120,7 +120,7 @@ export const HelpGuideModal: React.FC<Props> = ({
               onClick={() => setActiveTab('files')}
               className={`flex-1 py-1.5 px-3 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'files'
-                  ? 'bg-[#1EA0D2] text-white shadow-2xs'
+                  ? 'bg-[var(--accent)] text-[var(--accent-text-on)] shadow-2xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -131,7 +131,7 @@ export const HelpGuideModal: React.FC<Props> = ({
               onClick={() => setActiveTab('privacy')}
               className={`flex-1 py-1.5 px-3 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'privacy'
-                  ? 'bg-[#1EA0D2] text-white shadow-2xs'
+                  ? 'bg-[var(--accent)] text-[var(--accent-text-on)] shadow-2xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -154,7 +154,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Harf yoki talaffuz böyiça qidiriş..."
-                  className="w-full bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl py-2 pl-9 pr-3 text-xs sm:text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[#1EA0D2]"
+                  className="w-full bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl py-2 pl-9 pr-3 text-xs sm:text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 />
               </div>
 
@@ -175,13 +175,13 @@ export const HelpGuideModal: React.FC<Props> = ({
                         <tr
                           key={i}
                           className={`hover:bg-[var(--bg-surface-raised)]/50 transition-colors ${
-                            isChanged ? 'bg-[#1EA0D2]/5 font-medium' : ''
+                            isChanged ? 'bg-[var(--accent)]/5 font-medium' : ''
                           }`}
                         >
                           <td className="py-2 px-3">
                             <span
                               className={`inline-block font-semibold ${
-                                isChanged ? 'text-[#1EA0D2]' : 'text-[var(--text-primary)]'
+                                isChanged ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'
                               }`}
                             >
                               {item.newLatin}
@@ -191,7 +191,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                           <td className="py-2 px-3 text-[var(--text-secondary)]">{item.cyrillic}</td>
                           <td className="py-2 px-3 text-[11px] text-[var(--text-tertiary)]">
                             {isChanged ? (
-                              <span className="px-1.5 py-0.5 rounded bg-[#1EA0D2]/15 text-[#1EA0D2] font-medium">
+                              <span className="px-1.5 py-0.5 rounded bg-[var(--accent)]/15 text-[var(--accent)] font-medium">
                                 Yangi harf
                               </span>
                             ) : item.char === 'ʼ' ? (
@@ -212,10 +212,10 @@ export const HelpGuideModal: React.FC<Props> = ({
           {/* TAB 2: IMLO QOIDALARI */}
           {activeTab === 'rules' && (
             <div className="space-y-5 text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
-              <div className="p-4 rounded-xl bg-[#1EA0D2]/10 border border-[#1EA0D2]/25 text-[var(--text-primary)] flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-[#1EA0D2] shrink-0 mt-0.5" />
+              <div className="p-4 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/25 text-[var(--text-primary)] flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-[var(--accent)] shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-bold text-sm">Özbekiston Respublikasi rasmiy alifbo islohoti</h4>
+                  <h4 className="font-bold text-sm">Yangi lotin alifbosi qoidalari</h4>
                   <p className="text-xs mt-1 text-[var(--text-secondary)]">
                     Takomillaştirilgan alifboda qöşaloq va noqulay apostrofli 4 ta harf xalqaro standartdagi diakritik harflarga almaştirildi.
                   </p>
@@ -225,7 +225,7 @@ export const HelpGuideModal: React.FC<Props> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-base text-[#1EA0D2]">Ö ö</span>
+                    <span className="font-bold text-base text-[var(--accent)]">Ö ö</span>
                     <span className="text-[11px] text-[var(--text-tertiary)]">Oʻ oʻ örniga</span>
                   </div>
                   <p className="text-xs">Misollar: <span className="font-semibold text-[var(--text-primary)]">ördek, böri, tögʻri &rarr; töğri</span></p>
@@ -233,7 +233,7 @@ export const HelpGuideModal: React.FC<Props> = ({
 
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-base text-[#1EA0D2]">Ğ ğ</span>
+                    <span className="font-bold text-base text-[var(--accent)]">Ğ ğ</span>
                     <span className="text-[11px] text-[var(--text-tertiary)]">Gʻ gʻ örniga</span>
                   </div>
                   <p className="text-xs">Misollar: <span className="font-semibold text-[var(--text-primary)]">ğalaba, togʻ &rarr; toğ, bağʻir &rarr; bağir</span></p>
@@ -241,7 +241,7 @@ export const HelpGuideModal: React.FC<Props> = ({
 
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-base text-[#1EA0D2]">Ş ş</span>
+                    <span className="font-bold text-base text-[var(--accent)]">Ş ş</span>
                     <span className="text-[11px] text-[var(--text-tertiary)]">Sh sh örniga</span>
                   </div>
                   <p className="text-xs">Misollar: <span className="font-semibold text-[var(--text-primary)]">şahar, quyoş, başqa</span></p>
@@ -249,7 +249,7 @@ export const HelpGuideModal: React.FC<Props> = ({
 
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-base text-[#1EA0D2]">Ç ç</span>
+                    <span className="font-bold text-base text-[var(--accent)]">Ç ç</span>
                     <span className="text-[11px] text-[var(--text-tertiary)]">Ch ch örniga</span>
                   </div>
                   <p className="text-xs">Misollar: <span className="font-semibold text-[var(--text-primary)]">çoy, aççiq, çiroq</span></p>
@@ -258,7 +258,7 @@ export const HelpGuideModal: React.FC<Props> = ({
 
               <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-2">
                 <h5 className="font-bold text-[var(--text-primary)] flex items-center gap-1.5">
-                  <Info className="w-4 h-4 text-[#1EA0D2]" />
+                  <Info className="w-4 h-4 text-[var(--accent)]" />
                   <span>Tutuq belgisi (ʼ) saqlanib qoldi:</span>
                 </h5>
                 <p className="text-xs">
@@ -274,27 +274,39 @@ export const HelpGuideModal: React.FC<Props> = ({
             <div className="space-y-4 text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
               <div className="p-4 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-2">
                 <h4 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#1EA0D2]" />
+                  <FileText className="w-4 h-4 text-[var(--accent)]" />
                   <span>Word (.docx) hujjatlari transliteratsiyasi</span>
                 </h4>
                 <p>
-                  Ilova Word fayllarini oddiy matnga aylantirmaydi. Hujjat XML darajasida tahlil qilinadi:
+                  Ilova Word fayllarini oddiy matnga aylantirmaydi. Hujjat içidagi faqat matn joylari (harflar) almaştiriladi, qolgan hamma narsa bayt-bayt öz holida qoladi:
                 </p>
                 <ul className="list-disc pl-5 space-y-1 text-xs text-[var(--text-primary)]">
-                  <li>Jadvallar, ustunlar va qatorlar;</li>
-                  <li>Qalin (bold), kursiv (italic), tagiga chizilgan stillar;</li>
-                  <li>Shrift turlari va ranglari;</li>
-                  <li>Paragraflar, sarlavhalar va tasvirlar <strong>100% öz holida saqlanadi</strong>.</li>
+                  <li>jadvallar, ustun kengliklari va kataklar joylaşuvi;</li>
+                  <li>qalin, kursiv, tagiga çizilgan matn, şrift, rang va ölçam;</li>
+                  <li>sarlavha, kolontitul, izoh, raqamlangan röyxat, rasmlar va sahifa sozlamalari.</li>
                 </ul>
+                <p className="text-xs">
+                  Word baʼzan bitta sözni bir neçta bölakka ajratib saqlaydi (masalan, «O» qalin, «ʻzbekiston» oddiy). Ilova bunday sözlarni ham töğri ögiradi va har bir harf öz formatlaşida qoladi. Excel (.xlsx) va PowerPoint (.pptx) fayllari ham xuddi şunday işlanadi.
+                </p>
               </div>
 
               <div className="p-4 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-2">
                 <h4 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#1EA0D2]" />
+                  <FileText className="w-4 h-4 text-[var(--accent)]" />
+                  <span>Aralaş yozuvdagi hujjatlar</span>
+                </h4>
+                <p className="text-xs">
+                  Hujjatning bir qismi kirillda, bir qismi eski lotinda bölsa ham, har bir söz öz yozuvi böyiça aniqlanib, tanlangan natija yozuviga ögiriladi. Manba notöğri tanlangan bölsa ham natija töğri çiqadi. Kirill söz içiga adaşib yozilgan lotincha «o», «c» kabi harflar ham taniladi. Veb-manzil va e-poçtalar özgartirilmaydi.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-2">
+                <h4 className="font-bold text-sm text-[var(--text-primary)] flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[var(--accent)]" />
                   <span>ZIP arxivlari bilan işlaş</span>
                 </h4>
                 <p className="text-xs">
-                  Agar siz köplab fayllardan iborat <strong>.zip</strong> arxiv yuklasangiz, ilova arxiv içidagi barça <code>.docx</code> va <code>.txt</code> fayllarni ögirib, yangi arxiv holida yoki har bir faylni alohida yuklab beradi.
+                  Yuzlab hujjatni bitta <strong>.zip</strong> arxivga joylab yuklang. Papkalar tuzilişi va fayl nomlari saqlanadi. Arxivdagi biror fayl şikastlangan bölsa, jarayon töxtamaydi: u fayl asl holida qoldiriladi va hisobotda körsatiladi. Har bir faylni alohida ham yuklab oliş mumkin.
                 </p>
               </div>
 
@@ -313,7 +325,7 @@ export const HelpGuideModal: React.FC<Props> = ({
               <div className="p-4 rounded-xl bg-[var(--success)]/10 border border-[var(--success)]/25 text-[var(--text-primary)] flex items-start gap-3">
                 <ShieldCheck className="w-5 h-5 text-[var(--success)] shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="font-bold text-sm">Töliq Maxfiylik va Oflayn İşlaş Kafolati</h4>
+                  <h4 className="font-bold text-sm">Töliq maxfiylik va oflayn işlaş kafolati</h4>
                   <p className="text-xs mt-1 text-[var(--text-secondary)]">
                     Uşbu ilova 100% mijoz brauzerida (client-side) işlaydi. Siz kiritgan matnlar yoki yuklagan fayllar heç qaçon heç qanday serverga yuborilmaydi.
                   </p>
@@ -323,7 +335,7 @@ export const HelpGuideModal: React.FC<Props> = ({
               <div className="p-4 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-2">
                 <h5 className="font-bold text-[var(--text-primary)]">Taşqi ulanişlar yöq:</h5>
                 <p className="text-xs">
-                  Ilovada heç qanday taşqi analitika, reklama, taşqi CDN yoki Google Fonts ulanişlari mavjud emas. Şriftlar va barça kutubxonalar dastur içida mustaqil joylaşgan. Internet tarmoği uzilgan taqdirda ham ilovadan töliq foydalaniş mumkin.
+                  Ilovada heç qanday taşqi analitika, reklama, taşqi CDN yoki Google Fonts ulanişlari mavjud emas. Şriftlar va barça kutubxonalar dastur içida mustaqil joylaşgan. Internet tarmoği uzilgan taqdirda ham ilovadan töliq foydalaniş mumkin. Saytning xavfsizlik siyosati (Content-Security-Policy) brauzerga sahifadan taşqi serverlarga maʼlumot yuboriş imkonini texnik jihatdan bermaydi.
                 </p>
               </div>
             </div>
@@ -334,7 +346,7 @@ export const HelpGuideModal: React.FC<Props> = ({
         {/* Modal Footer */}
         <div className="px-5 py-3 border-t border-[var(--border-subtle)] bg-[var(--bg-surface-raised)]/30 flex items-center justify-between">
           <span className="text-[11px] text-[var(--text-tertiary)]">
-            Özbekiston Respublikasi &middot; Rasmiy imlo standarti
+            Imlo qoidalari asosida &middot; oflayn işlaydi
           </span>
           <button
             type="button"

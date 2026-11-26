@@ -1,58 +1,57 @@
 import React from 'react';
-import { BookOpen, Moon, Sun } from 'lucide-react';
+import { BookOpenText, Moon, Sun } from 'lucide-react';
+import { LogoMark } from './Logo';
 
 interface Props {
   onOpenTable: () => void;
+  onOpenGuide: () => void;
   isDark: boolean;
   toggleTheme: () => void;
 }
 
-export const Header: React.FC<Props> = ({ onOpenTable, isDark, toggleTheme }) => {
-  return (
-    <header className="border-b border-[var(--border-subtle)] bg-[var(--bg-panel)] sticky top-0 z-40 transition-colors">
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+const navBtn =
+  'press h-9 px-3 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] cursor-pointer';
 
-        {/* Brand / Logo */}
-        <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-xl bg-[#1EA0D2] flex items-center justify-center text-white font-bold font-sans text-sm select-none shrink-0 shadow-xs"
-            aria-hidden="true"
-          >
-            Öğ
-          </div>
-          <h1 className="text-base sm:text-lg font-bold tracking-tight text-[var(--text-primary)]">
-            Özbek Alifbosi
-          </h1>
-        </div>
+export const Header: React.FC<Props> = ({ onOpenTable, onOpenGuide, isDark, toggleTheme }) => (
+  <header className="sticky top-0 z-40 bg-[var(--bg-app)]/85 backdrop-blur-md">
+    <a
+      href="#main"
+      className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:px-3 focus:py-2 focus:rounded-lg focus:bg-[var(--bg-panel)] focus:shadow"
+    >
+      Asosiy qismga ötiş
+    </a>
+    <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <a href="./" className="flex items-center gap-3 min-w-0" aria-label="Özbek Alifbosi — bosh sahifa">
+        <LogoMark className="w-8 h-8 shrink-0" />
+        <span className="text-[15px] font-semibold tracking-[-0.01em] text-[var(--text-primary)]">Özbek Alifbosi</span>
+      </a>
 
-        {/* Header Actions */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenTable}
-            className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1EA0D2] focus-visible:outline-none"
-            title="Alifbo jadvali"
-            aria-label="Alifbo jadvali"
-          >
-            <BookOpen className="w-4 h-4 text-[var(--text-primary)]" />
-          </button>
-
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#1EA0D2] focus-visible:outline-none"
-            aria-label={isDark ? "Yoruğ rejimga ötiş" : "Qoronği rejimga ötiş"}
-            title={isDark ? "Yoruğ rejimga ötiş" : "Qoronği rejimga ötiş"}
-          >
-            {isDark ? (
-              <Sun className="w-4 h-4 text-[#F59E0B]" />
-            ) : (
-              <Moon className="w-4 h-4 text-[var(--text-primary)]" />
-            )}
-          </button>
-        </div>
-
-      </div>
-    </header>
-  );
-};
+      <nav className="flex items-center gap-1" aria-label="Asosiy">
+        <button type="button" onClick={onOpenTable} className={`${navBtn} hidden sm:inline-flex items-center`}>
+          Alifbo jadvali
+        </button>
+        <button type="button" onClick={onOpenGuide} className={`${navBtn} hidden sm:inline-flex items-center`}>
+          Qöllanma
+        </button>
+        <button
+          type="button"
+          onClick={onOpenTable}
+          className={`${navBtn} sm:hidden w-9 px-0 inline-flex items-center justify-center`}
+          aria-label="Alifbo jadvali"
+        >
+          <BookOpenText className="w-[18px] h-[18px]" />
+        </button>
+        <span className="w-px h-5 bg-[var(--border-subtle)] mx-1.5" aria-hidden="true" />
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={`${navBtn} w-9 px-0 inline-flex items-center justify-center`}
+          aria-label={isDark ? 'Yoruğ mavzu' : 'Qoronği mavzu'}
+          title={isDark ? 'Yoruğ mavzu' : 'Qoronği mavzu'}
+        >
+          {isDark ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+        </button>
+      </nav>
+    </div>
+  </header>
+);

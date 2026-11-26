@@ -1,307 +1,645 @@
+/**
+ * Hujjatlarni (Word, Excel, PowerPoint, matn va ZIP arxivlar) oʻgirish moduli.
+ *
+ * Kafolatlar:
+ *  - Office fayllarida XML qayta yigʻilmaydi: faqat matn teglari (<w:t>, <a:t>, <t>)
+ *    ichidagi belgilar almashtiriladi, qolgan barcha baytlar (jadval, ustun kengligi,
+ *    shrift, uslub, rasm, sahifa sozlamalari) aynan oʻz holicha qoladi.
+ *  - Paragraf boʻyicha oʻgiriladi: Word soʻzni bir nechta "run"ga boʻlgan boʻlsa ham
+ *    toʻgʻri oʻgiriladi va har bir harf oʻz formatlashida qoladi.
+ *  - Arxivdagi biror fayl buzilgan boʻlsa, butun jarayon toʻxtamaydi: u fayl asl holida
+ *    qoldiriladi va hisobotda koʻrsatiladi.
+ *  - DOM talab qilinmaydi — Web Worker ichida ishlaydi.
+ */
 import JSZip from 'jszip';
 import {
-  kirillToYangiLotin,
-  eskiLotinToYangiLotin,
-  yangiLotinToEskiLotin,
-  yangiLotinToKirill,
-  autoTransliterate,
-} from '../core/transliterate';
+  convertSegments,
+  convertTextWithStats,
+  computeContext,
+  emptyStats,
+  addStats,
+  ConvertOptions,
+  ConvertStats,
+  Script,
+} from '../core/engine';
 
-export type SourceScript = 'auto' | 'eski_lotin' | 'cyrillic' | 'new_latin';
-export type TargetScript = 'new_latin' | 'eski_lotin' | 'cyrillic';
+export type { Script };
 
-export interface ConvertedItem {
-  filename: string;
-  blob: Blob;
-  size: number;
+export type FileKind = 'docx' | 'xlsx' | 'pptx' | 'text' | 'markdown' | 'zip' | 'unsupported';
+
+export type ItemStatus = 'converted' | 'unchanged' | 'skipped' | 'error';
+
+export interface ReportItem {
+  path: string;
+  status: ItemStatus;
+  message?: string;
+  changedWords?: number;
 }
 
 export interface ConvertResult {
   blob: Blob;
-  newFilename: string;
+  filename: string;
+  originalName: string;
   originalSize: number;
-  isArchive?: boolean;
-  archiveItems?: ConvertedItem[];
-  wordCount?: number;
-  charCount?: number;
+  isArchive: boolean;
+  report: ReportItem[];
+  stats: ConvertStats;
 }
 
-/**
- * Manba va Natija yozuviga qarab mos transliteratsiya funksiyasini qaytaradi.
- */
-export const getConvertFunction = (
-  source: SourceScript,
-  target: TargetScript
-): ((text: string) => string) => {
-  if (source === 'auto') {
-    return (text: string) => autoTransliterate(text, 'new_latin').result;
-  }
-  if (source === 'eski_lotin' && target === 'new_latin') {
-    return eskiLotinToYangiLotin;
-  }
-  if (source === 'cyrillic' && target === 'new_latin') {
-    return kirillToYangiLotin;
-  }
-  if (source === 'new_latin' && target === 'eski_lotin') {
-    return yangiLotinToEskiLotin;
-  }
-  if (source === 'new_latin' && target === 'cyrillic') {
-    return yangiLotinToKirill;
-  }
-  return eskiLotinToYangiLotin;
+export interface ProgressInfo {
+  phase: 'reading' | 'converting' | 'packing';
+  done: number;
+  total: number;
+  current?: string;
+  /** packing bosqichida 0..100 */
+  percent?: number;
+}
+
+export type ProgressFn = (p: ProgressInfo) => void;
+
+export interface CancelSignal {
+  aborted: boolean;
+}
+
+export const MAX_FILE_SIZE = 1.5 * 1024 * 1024 * 1024; // 1.5 GB
+
+export const SUPPORTED_EXTENSIONS = [
+  '.docx', '.docm', '.dotx', '.xlsx', '.xlsm', '.pptx', '.txt', '.md', '.csv', '.zip',
+];
+export const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.join(',');
+
+const TARGET_SUFFIX: Record<Script, string> = {
+  new_latin: 'yangi_lotin',
+  old_latin: 'eski_lotin',
+  cyrillic: 'kirill',
 };
 
-/**
- * Bayt oʻlchamini odam tushunadigan formatga keltiradi (masalan: 24.5 KB).
- */
+export const outputName = (name: string, to: Script): string => {
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0) return `${name}_${TARGET_SUFFIX[to]}`;
+  return `${name.slice(0, dot)}_${TARGET_SUFFIX[to]}${name.slice(dot)}`;
+};
+
+export const kindOf = (name: string): FileKind => {
+  const ext = name.toLowerCase().split('.').pop() || '';
+  if (['docx', 'docm', 'dotx', 'dotm'].includes(ext)) return 'docx';
+  if (['xlsx', 'xlsm', 'xltx'].includes(ext)) return 'xlsx';
+  if (['pptx', 'pptm', 'ppsx', 'potx'].includes(ext)) return 'pptx';
+  if (['txt', 'csv', 'tsv', 'srt'].includes(ext)) return 'text';
+  if (['md', 'markdown'].includes(ext)) return 'markdown';
+  if (ext === 'zip') return 'zip';
+  return 'unsupported';
+};
+
+const unsupportedMessage = (name: string): string => {
+  const ext = name.toLowerCase().split('.').pop() || '';
+  if (ext === 'doc') return 'Eski .doc formati. Wordʼda «Saqlaş → .docx» qilib qayta yuklang.';
+  if (ext === 'xls') return 'Eski .xls formati. Excelʼda .xlsx qilib saqlang.';
+  if (ext === 'ppt') return 'Eski .ppt formati. PowerPointʼda .pptx qilib saqlang.';
+  if (ext === 'pdf') return 'PDF tahrirlanmaydigan format. Asl Word faylini yuklang.';
+  if (ext === 'rtf') return 'RTF formati. Wordʼda .docx qilib saqlang.';
+  return 'Bu fayl turi matn sifatida ögirilmaydi — özgarişsiz qoldirildi.';
+};
+
 export const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B';
+  if (!bytes) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
-/**
- * Docx arrayBuffer yoki Uint8Array maʼlumotini XML darajasida transliteratsiya qiladi.
- */
-export const convertDocxBuffer = async (
-  buffer: ArrayBuffer | Uint8Array,
-  convertFn: (text: string) => string
-): Promise<{ blob: Blob; fullExtractedLength: number; wordCount: number }> => {
-  const zip = await JSZip.loadAsync(buffer);
+const yieldToLoop = () => new Promise<void>((r) => setTimeout(r, 0));
 
-  const xmlFileNames = Object.keys(zip.files).filter((name) => {
-    return (
-      (name.startsWith('word/') || name.startsWith('word\\')) &&
-      name.endsWith('.xml')
-    );
-  });
-
-  const hasDOMParser =
-    typeof DOMParser !== 'undefined' && typeof XMLSerializer !== 'undefined';
-  const parser = hasDOMParser ? new DOMParser() : null;
-  const serializer = hasDOMParser ? new XMLSerializer() : null;
-
-  let fullExtractedLength = 0;
-  let wordCount = 0;
-
-  for (const name of xmlFileNames) {
-    const fileEntry = zip.files[name];
-    if (!fileEntry || fileEntry.dir) continue;
-
-    const xmlString = await fileEntry.async('text');
-
-    if (parser && serializer) {
-      const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
-      const parseErrors = xmlDoc.getElementsByTagName('parsererror');
-
-      if (parseErrors.length === 0) {
-        const textNodes = xmlDoc.getElementsByTagName('w:t');
-        for (let i = 0; i < textNodes.length; i++) {
-          const node = textNodes[i];
-          const originalText = node.textContent ?? '';
-          if (originalText) {
-            const converted = convertFn(originalText);
-            node.textContent = converted;
-            fullExtractedLength += converted.length;
-            wordCount += converted.trim().split(/\s+/).filter(Boolean).length;
-          }
-        }
-        zip.file(name, serializer.serializeToString(xmlDoc));
-        continue;
-      }
-    }
-
-    // Fallback: Regex orqali <w:t> ni almashtirish
-    const replaced = xmlString.replace(
-      /(<w:t[^>]*>)([\s\S]*?)(<\/w:t>)/g,
-      (_match, openTag, text, closeTag) => {
-        const converted = convertFn(text);
-        fullExtractedLength += converted.length;
-        wordCount += converted.trim().split(/\s+/).filter(Boolean).length;
-        return openTag + converted + closeTag;
-      }
-    );
-    zip.file(name, replaced);
+export class CancelledError extends Error {
+  constructor() {
+    super('Bekor qilindi');
+    this.name = 'CancelledError';
   }
+}
 
-  const blob = await zip.generateAsync({
-    type: 'blob',
-    mimeType:
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  });
+// ---------------------------------------------------------------------------
+// XML (OOXML) — jarrohlik usulida matnni almashtirish
+// ---------------------------------------------------------------------------
 
-  return { blob, fullExtractedLength, wordCount };
+interface XmlConfig {
+  para: string[];
+  text: string[];
+  sep: Record<string, string>;
+}
+
+const DOCX_CFG: XmlConfig = {
+  para: ['w:p', 'a:p'],
+  text: ['w:t', 'a:t'],
+  sep: { 'w:tab': '\t', 'w:br': '\n', 'w:cr': '\n', 'w:noBreakHyphen': '-', 'a:br': '\n', 'w:ptab': '\t' },
+};
+const PPTX_CFG: XmlConfig = { para: ['a:p'], text: ['a:t'], sep: { 'a:br': '\n' } };
+const XLSX_CFG: XmlConfig = { para: ['si', 'is', 'a:p'], text: ['t', 'a:t'], sep: { 'a:br': '\n' } };
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildTagRe = (cfg: XmlConfig) => {
+  const names = [...cfg.para, ...cfg.text, ...Object.keys(cfg.sep)].map(escapeRe).join('|');
+  return new RegExp(`<(/?)(${names})(?=[\\s/>])([^>]*)>`, 'g');
 };
 
-/**
- * Word (.docx) faylini formatlashni 100% saqlagan holda oʻgiradi.
- */
-export const convertDocxFile = async (
-  file: File,
-  convertFn: (text: string) => string
-): Promise<ConvertResult> => {
-  const arrayBuffer = await file.arrayBuffer();
-  const { blob, fullExtractedLength, wordCount } = await convertDocxBuffer(
-    arrayBuffer,
-    convertFn
-  );
+const ENTITY_RE = /&(#x[0-9a-fA-F]+|#[0-9]+|amp|lt|gt|quot|apos);/g;
+const decodeXml = (s: string): string =>
+  s.indexOf('&') === -1
+    ? s
+    : s.replace(ENTITY_RE, (_m, e: string) => {
+        switch (e) {
+          case 'amp': return '&';
+          case 'lt': return '<';
+          case 'gt': return '>';
+          case 'quot': return '"';
+          case 'apos': return "'";
+          default:
+            return String.fromCodePoint(e[1] === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10));
+        }
+      });
+const encodeXml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  const baseName = file.name.replace(/\.docx$/i, '');
-  const newFilename = `${baseName}_yangi_alifbo.docx`;
+type Seg = { start: number; end: number; text: string } | { sep: string };
 
-  return {
-    blob,
-    newFilename,
-    originalSize: file.size,
-    wordCount,
-    charCount: fullExtractedLength,
-  };
-};
+/** XML dagi paragraflar va ularning matn boʻlaklarini topadi (hujjat tartibida emas). */
+const scanParagraphs = (xml: string, cfg: XmlConfig): Seg[][] => {
+  const re = buildTagRe(cfg);
+  const paraSet = new Set(cfg.para);
+  const textSet = new Set(cfg.text);
 
-/**
- * Matn (.txt) faylini transliteratsiya qiladi.
- */
-export const convertTxtFile = async (
-  file: File,
-  convertFn: (text: string) => string
-): Promise<ConvertResult> => {
-  const originalText = await file.text();
-  const convertedText = convertFn(originalText);
+  const paragraphs: Seg[][] = [];
+  const stack: Seg[][] = [];
+  const loose: Seg[] = [];
 
-  const generatedBlob = new Blob([convertedText], {
-    type: 'text/plain;charset=utf-8',
-  });
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    const closing = m[1] === '/';
+    const name = m[2];
+    const selfClosing = m[3].endsWith('/');
 
-  const baseName = file.name.replace(/\.txt$/i, '');
-  const newFilename = `${baseName}_yangi_alifbo.txt`;
-
-  const words = convertedText.trim()
-    ? convertedText.trim().split(/\s+/).filter(Boolean).length
-    : 0;
-
-  return {
-    blob: generatedBlob,
-    newFilename,
-    originalSize: file.size,
-    wordCount: words,
-    charCount: convertedText.length,
-  };
-};
-
-/**
- * ZIP arxivini ochib, ichidagi barcha .docx va .txt fayllarni oʻgirib,
- * ham yangi ZIP yaratadi, ham har bir faylni alohida ajratib beradi.
- */
-export const convertZipArchive = async (
-  file: File,
-  convertFn: (text: string) => string
-): Promise<ConvertResult> => {
-  const inputZip = await JSZip.loadAsync(file);
-  const outputZip = new JSZip();
-  const archiveItems: ConvertedItem[] = [];
-
-  let totalChars = 0;
-  let totalWords = 0;
-
-  for (const relativePath of Object.keys(inputZip.files)) {
-    const entry = inputZip.files[relativePath];
-    if (entry.dir) {
-      outputZip.folder(relativePath);
+    if (paraSet.has(name)) {
+      if (selfClosing) continue;
+      if (!closing) stack.push([]);
+      else {
+        const p = stack.pop();
+        if (p && p.length) paragraphs.push(p);
+      }
       continue;
     }
-
-    const lowerPath = relativePath.toLowerCase();
-
-    // 1) DOCX fayllar
-    if (lowerPath.endsWith('.docx')) {
-      const buffer = await entry.async('arraybuffer');
-      const { blob, fullExtractedLength, wordCount } = await convertDocxBuffer(
-        buffer,
-        convertFn
-      );
-      totalChars += fullExtractedLength;
-      totalWords += wordCount;
-
-      outputZip.file(relativePath, blob);
-
-      const fileName = relativePath.split('/').pop() || relativePath;
-      archiveItems.push({
-        filename: fileName,
-        blob,
-        size: blob.size,
-      });
+    if (textSet.has(name)) {
+      if (closing || selfClosing) continue;
+      const contentStart = re.lastIndex;
+      const closeTag = `</${name}>`;
+      const endIdx = xml.indexOf(closeTag, contentStart);
+      if (endIdx === -1) break;
+      const seg: Seg = { start: contentStart, end: endIdx, text: decodeXml(xml.slice(contentStart, endIdx)) };
+      (stack.length ? stack[stack.length - 1] : loose).push(seg);
+      re.lastIndex = endIdx + closeTag.length;
+      continue;
     }
-    // 2) TXT fayllar
-    else if (lowerPath.endsWith('.txt')) {
-      const text = await entry.async('text');
-      const converted = convertFn(text);
-      totalChars += converted.length;
-      totalWords += converted.trim().split(/\s+/).filter(Boolean).length;
+    const sep = cfg.sep[name];
+    if (sep !== undefined && !closing && stack.length) stack[stack.length - 1].push({ sep });
+  }
+  while (stack.length) {
+    const p = stack.pop()!;
+    if (p.length) paragraphs.push(p);
+  }
+  for (const s of loose) paragraphs.push([s]);
+  return paragraphs;
+};
 
-      const txtBlob = new Blob([converted], {
-        type: 'text/plain;charset=utf-8',
-      });
-      outputZip.file(relativePath, txtBlob);
+/** Paragraf matnlari hujjat tartibida (preview uchun). */
+const paragraphTexts = (xml: string, cfg: XmlConfig): string[] =>
+  scanParagraphs(xml, cfg)
+    .map((p) => {
+      const first = p.find((s): s is { start: number; end: number; text: string } => 'text' in s);
+      return { pos: first ? first.start : 0, text: p.map((s) => ('text' in s ? s.text : s.sep)).join('') };
+    })
+    .sort((a, b) => a.pos - b.pos)
+    .map((p) => p.text);
 
-      const fileName = relativePath.split('/').pop() || relativePath;
-      archiveItems.push({
-        filename: fileName,
-        blob: txtBlob,
-        size: txtBlob.size,
-      });
-    }
-    // 3) Boshqa har qanday fayl (rasm, rtf va h.k.) oʻzgarishsiz saqlanadi
-    else {
-      const originalData = await entry.async('uint8array');
-      outputZip.file(relativePath, originalData);
+/** Bitta XML qismini oʻgiradi. O'zgarish bo'lmasa null qaytaradi. */
+export const convertXmlPart = (
+  xml: string,
+  cfg: XmlConfig,
+  opts: ConvertOptions
+): { xml: string | null; stats: ConvertStats } => {
+  const paragraphs = scanParagraphs(xml, cfg);
+  if (paragraphs.length === 0) return { xml: null, stats: emptyStats() };
+
+  // Hujjat darajasidagi kontekst (qisqa jadval kataklari uchun)
+  let docText = '';
+  for (const p of paragraphs) {
+    for (const s of p) docText += 'text' in s ? s.text : ' ';
+    docText += '\n';
+    if (docText.length > 300_000) break;
+  }
+  const docContext = computeContext(docText);
+
+  const replacements: { start: number; end: number; value: string }[] = [];
+  let stats = emptyStats();
+
+  for (const p of paragraphs) {
+    const texts = p.map((s) => ('text' in s ? s.text : s.sep));
+    const r = convertSegments(texts, opts, docContext);
+    stats = addStats(stats, r.stats);
+    p.forEach((s, idx) => {
+      if ('text' in s && r.segments[idx] !== s.text) {
+        replacements.push({ start: s.start, end: s.end, value: encodeXml(r.segments[idx]) });
+      }
+    });
+  }
+
+  if (replacements.length === 0) return { xml: null, stats };
+
+  replacements.sort((a, b) => a.start - b.start);
+  const parts: string[] = [];
+  let pos = 0;
+  for (const rep of replacements) {
+    parts.push(xml.slice(pos, rep.start), rep.value);
+    pos = rep.end;
+  }
+  parts.push(xml.slice(pos));
+  return { xml: parts.join(''), stats };
+};
+
+const OOXML_PARTS: Record<'docx' | 'xlsx' | 'pptx', { test: (p: string) => boolean; cfg: XmlConfig }> = {
+  docx: {
+    test: (p) =>
+      /^word\/(document|header\d*|footer\d*|footnotes|endnotes|comments[A-Za-z]*)\.xml$/i.test(p) ||
+      /^word\/glossary\/document\.xml$/i.test(p) ||
+      /^word\/(charts|diagrams)\/[^/]+\.xml$/i.test(p),
+    cfg: DOCX_CFG,
+  },
+  pptx: {
+    test: (p) =>
+      /^ppt\/(slides|notesSlides)\/[^/]+\.xml$/i.test(p) || /^ppt\/(charts|diagrams)\/[^/]+\.xml$/i.test(p),
+    cfg: PPTX_CFG,
+  },
+  xlsx: {
+    test: (p) =>
+      /^xl\/sharedStrings\.xml$/i.test(p) ||
+      /^xl\/worksheets\/[^/]+\.xml$/i.test(p) ||
+      /^xl\/(charts|drawings)\/[^/]+\.xml$/i.test(p),
+    cfg: XLSX_CFG,
+  },
+};
+
+const isZipMagic = (b: Uint8Array) => b.length > 3 && b[0] === 0x50 && b[1] === 0x4b;
+const isCfbMagic = (b: Uint8Array) =>
+  b.length > 7 && b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0;
+
+const MIME: Record<'docx' | 'xlsx' | 'pptx', string> = {
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+
+/** Office hujjatini (docx/xlsx/pptx) oʻgiradi. */
+export const convertOfficeBytes = async (
+  data: Uint8Array,
+  kind: 'docx' | 'xlsx' | 'pptx',
+  opts: ConvertOptions
+): Promise<{ data: Uint8Array; changed: boolean; stats: ConvertStats }> => {
+  if (isCfbMagic(data)) {
+    throw new Error('Hujjat parol bilan himoyalangan yoki eski formatda. Parolni olib taşlab, .docx qilib saqlang.');
+  }
+  if (!isZipMagic(data)) throw new Error('Fayl şikastlangan yoki haqiqiy Office hujjati emas.');
+
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(data);
+  } catch {
+    throw new Error('Fayl şikastlangan — oçib bölmadi.');
+  }
+
+  const { test, cfg } = OOXML_PARTS[kind];
+  let stats = emptyStats();
+  let changed = false;
+
+  for (const path of Object.keys(zip.files)) {
+    const entry = zip.files[path];
+    if (entry.dir || !test(path)) continue;
+    const xml = await entry.async('string');
+    const r = convertXmlPart(xml, cfg, opts);
+    stats = addStats(stats, r.stats);
+    if (r.xml !== null) {
+      zip.file(path, r.xml, { date: entry.date, createFolders: false });
+      changed = true;
     }
   }
 
-  const finalZipBlob = await outputZip.generateAsync({
-    type: 'blob',
-    mimeType: 'application/zip',
+  if (!changed) return { data, changed: false, stats };
+
+  const out = await zip.generateAsync({
+    type: 'uint8array',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+    mimeType: MIME[kind],
   });
+  return { data: out, changed: true, stats };
+};
 
-  const baseName = file.name.replace(/\.zip$/i, '');
-  const newFilename = `${baseName}_yangi_alifbo.zip`;
+// ---------------------------------------------------------------------------
+// Matn fayllari (kodirovka saqlanadi)
+// ---------------------------------------------------------------------------
 
+type TextEncoding = 'utf-8' | 'utf-8-bom' | 'utf-16le' | 'utf-16be' | 'windows-1251';
+
+export const decodeTextBytes = (b: Uint8Array): { text: string; encoding: TextEncoding } => {
+  if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) {
+    return { text: new TextDecoder('utf-8').decode(b.subarray(3)), encoding: 'utf-8-bom' };
+  }
+  if (b.length >= 2 && b[0] === 0xff && b[1] === 0xfe) {
+    return { text: new TextDecoder('utf-16le').decode(b.subarray(2)), encoding: 'utf-16le' };
+  }
+  if (b.length >= 2 && b[0] === 0xfe && b[1] === 0xff) {
+    return { text: new TextDecoder('utf-16be').decode(b.subarray(2)), encoding: 'utf-16be' };
+  }
+  try {
+    return { text: new TextDecoder('utf-8', { fatal: true }).decode(b), encoding: 'utf-8' };
+  } catch {
+    // Windows kirill (CP1251) — eski kompyuterlarda saqlangan .txt fayllar
+    return { text: new TextDecoder('windows-1251').decode(b), encoding: 'windows-1251' };
+  }
+};
+
+const encodeUtf16 = (text: string, bigEndian: boolean): Uint8Array => {
+  const out = new Uint8Array(2 + text.length * 2);
+  out[0] = bigEndian ? 0xfe : 0xff;
+  out[1] = bigEndian ? 0xff : 0xfe;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    out[2 + i * 2] = bigEndian ? c >> 8 : c & 0xff;
+    out[3 + i * 2] = bigEndian ? c & 0xff : c >> 8;
+  }
+  return out;
+};
+
+export const encodeTextBytes = (text: string, encoding: TextEncoding): Uint8Array => {
+  if (encoding === 'utf-16le') return encodeUtf16(text, false);
+  if (encoding === 'utf-16be') return encodeUtf16(text, true);
+  const body = new TextEncoder().encode(text);
+  // CP1251 da Ö, Ğ, Ş, Ç, ʼ yoʻq — UTF-8 (BOM bilan, Notepad toʻgʻri ochishi uchun)
+  if (encoding === 'utf-8-bom' || encoding === 'windows-1251') {
+    const out = new Uint8Array(body.length + 3);
+    out.set([0xef, 0xbb, 0xbf]);
+    out.set(body, 3);
+    return out;
+  }
+  return body;
+};
+
+export const convertTextBytes = (
+  data: Uint8Array,
+  opts: ConvertOptions
+): { data: Uint8Array; changed: boolean; stats: ConvertStats } => {
+  const { text, encoding } = decodeTextBytes(data);
+  const r = convertTextWithStats(text, opts);
+  if (r.text === text && encoding !== 'windows-1251') return { data, changed: false, stats: r.stats };
+  return { data: encodeTextBytes(r.text, encoding), changed: r.text !== text, stats: r.stats };
+};
+
+// ---------------------------------------------------------------------------
+// Bitta faylni oʻgirish
+// ---------------------------------------------------------------------------
+
+const convertBytesByKind = async (
+  data: Uint8Array,
+  kind: FileKind,
+  opts: ConvertOptions
+): Promise<{ data: Uint8Array; changed: boolean; stats: ConvertStats }> => {
+  if (kind === 'docx' || kind === 'xlsx' || kind === 'pptx') return convertOfficeBytes(data, kind, opts);
+  if (kind === 'text') return convertTextBytes(data, { ...opts, markdown: false });
+  if (kind === 'markdown') return convertTextBytes(data, { ...opts, markdown: true });
+  throw new Error('Qöllab-quvvatlanmaydigan format');
+};
+
+const mimeFor = (kind: FileKind): string => {
+  if (kind === 'docx' || kind === 'xlsx' || kind === 'pptx') return MIME[kind];
+  if (kind === 'markdown') return 'text/markdown;charset=utf-8';
+  if (kind === 'zip') return 'application/zip';
+  return 'text/plain;charset=utf-8';
+};
+
+// ---------------------------------------------------------------------------
+// ZIP arxiv
+// ---------------------------------------------------------------------------
+
+/** Windows "Siqilgan papka" kirill nomlarni CP866 da yozadi — toʻgʻri oʻqish uchun. */
+const decodeZipName = (bytes: string[] | Uint8Array | Buffer): string => {
+  const arr = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes as string[], (c) => Number(c));
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(arr);
+  } catch {
+    try {
+      return new TextDecoder('ibm866').decode(arr);
+    } catch {
+      return Array.from(arr, (c) => String.fromCharCode(c)).join('');
+    }
+  }
+};
+
+const isJunk = (path: string) => {
+  const base = path.split('/').pop() || '';
+  return path.startsWith('__MACOSX/') || base === '.DS_Store' || base === 'Thumbs.db' || base.startsWith('~$');
+};
+
+const ALREADY_COMPRESSED = new Set(['docx', 'xlsx', 'pptx', 'zip']);
+
+export const convertArchiveBytes = async (
+  data: Uint8Array | Blob,
+  opts: ConvertOptions,
+  onProgress?: ProgressFn,
+  signal?: CancelSignal
+): Promise<{ blob: Blob; report: ReportItem[]; stats: ConvertStats }> => {
+  onProgress?.({ phase: 'reading', done: 0, total: 0 });
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(data, { decodeFileName: decodeZipName });
+  } catch {
+    throw new Error('ZIP arxivni oçib bölmadi. Arxiv şikastlangan yoki parol bilan himoyalangan bölişi mumkin.');
+  }
+
+  const entries = Object.values(zip.files);
+  const fileEntries = entries.filter((e) => !e.dir);
+  const total = fileEntries.length;
+  const out = new JSZip();
+  const report: ReportItem[] = [];
+  let stats = emptyStats();
+  let done = 0;
+
+  for (const entry of entries) {
+    if (signal?.aborted) throw new CancelledError();
+    const path = entry.name;
+    if (entry.dir) {
+      out.folder(path);
+      continue;
+    }
+    onProgress?.({ phase: 'converting', done, total, current: path });
+
+    const raw = await entry.async('uint8array');
+    zip.remove(path); // xotirani boʻshatish
+    const kind = isJunk(path) ? 'unsupported' : kindOf(path);
+    const ext = kind === 'unsupported' ? '' : kind;
+    const fileOpts = { date: entry.date, binary: true, compression: ALREADY_COMPRESSED.has(ext) ? 'STORE' : 'DEFLATE' } as const;
+
+    if (kind === 'unsupported' || kind === 'zip') {
+      out.file(path, raw, fileOpts);
+      report.push({
+        path,
+        status: 'skipped',
+        message: isJunk(path)
+          ? 'Tizim fayli — özgarişsiz'
+          : kind === 'zip'
+            ? 'Arxiv içidagi arxiv — alohida yuklang'
+            : unsupportedMessage(path),
+      });
+    } else {
+      try {
+        const r = await convertBytesByKind(raw, kind, opts);
+        stats = addStats(stats, r.stats);
+        out.file(path, r.data, fileOpts);
+        report.push({
+          path,
+          status: r.changed ? 'converted' : 'unchanged',
+          changedWords: r.stats.changed,
+          message: r.changed ? undefined : 'Ögiriladigan harf topilmadi',
+        });
+      } catch (err) {
+        out.file(path, raw, fileOpts);
+        report.push({ path, status: 'error', message: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    done++;
+    onProgress?.({ phase: 'converting', done, total, current: path });
+    // Interfeys va bekor qilish signali uchun
+    if (done % 4 === 0) await yieldToLoop();
+  }
+
+  if (signal?.aborted) throw new CancelledError();
+  onProgress?.({ phase: 'packing', done, total, percent: 0 });
+  const blob = await out.generateAsync(
+    { type: 'blob', mimeType: 'application/zip', streamFiles: true },
+    (meta) => onProgress?.({ phase: 'packing', done, total, percent: meta.percent })
+  );
+  return { blob, report, stats };
+};
+
+// ---------------------------------------------------------------------------
+// Umumiy kirish nuqtasi
+// ---------------------------------------------------------------------------
+
+export const convertFile = async (
+  file: Blob,
+  name: string,
+  opts: ConvertOptions,
+  onProgress?: ProgressFn,
+  signal?: CancelSignal
+): Promise<ConvertResult> => {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`Fayl juda katta (${formatFileSize(file.size)}). Eng köpi bilan ${formatFileSize(MAX_FILE_SIZE)}. Arxivni bir neçta qismga bölib yuklang.`);
+  }
+  const kind = kindOf(name);
+  const filename = outputName(name, opts.to);
+
+  if (kind === 'zip') {
+    const r = await convertArchiveBytes(file, opts, onProgress, signal);
+    return {
+      blob: r.blob,
+      filename,
+      originalName: name,
+      originalSize: file.size,
+      isArchive: true,
+      report: r.report,
+      stats: r.stats,
+    };
+  }
+
+  if (kind === 'unsupported') throw new Error(unsupportedMessage(name));
+
+  onProgress?.({ phase: 'converting', done: 0, total: 1, current: name });
+  const data = new Uint8Array(await file.arrayBuffer());
+  const r = await convertBytesByKind(data, kind, opts);
+  onProgress?.({ phase: 'converting', done: 1, total: 1, current: name });
   return {
-    blob: finalZipBlob,
-    newFilename,
+    blob: new Blob([r.data as BlobPart], { type: mimeFor(kind) }),
+    filename,
+    originalName: name,
     originalSize: file.size,
-    isArchive: true,
-    archiveItems,
-    wordCount: totalWords,
-    charCount: totalChars,
+    isArchive: false,
+    report: [
+      {
+        path: name,
+        status: r.changed ? 'converted' : 'unchanged',
+        changedWords: r.stats.changed,
+        message: r.changed ? undefined : 'Ögiriladigan harf topilmadi',
+      },
+    ],
+    stats: r.stats,
   };
 };
 
-/**
- * Har qanday yuklangan faylni (.docx, .txt, .zip) avtomatik aniqlab oʻgiradi.
- */
-export const processUploadedFile = async (
-  file: File,
-  source: SourceScript,
-  target: TargetScript
-): Promise<ConvertResult> => {
-  const convertFn = getConvertFunction(source, target);
-  const lowerName = file.name.toLowerCase();
+/** Tayyor ZIP natijadan bitta faylni ajratib olish (xotirani tejash uchun talab boʻyicha). */
+export const extractFromZip = async (zipBlob: Blob, path: string): Promise<Blob> => {
+  const zip = await JSZip.loadAsync(zipBlob);
+  const entry = zip.file(path);
+  if (!entry) throw new Error('Fayl topilmadi');
+  const data = await entry.async('uint8array');
+  return new Blob([data as BlobPart], { type: mimeFor(kindOf(path)) });
+};
 
-  if (lowerName.endsWith('.docx')) {
-    return await convertDocxFile(file, convertFn);
+// ---------------------------------------------------------------------------
+// Koʻrish (preview): oʻzgargan soʻzlar belgilangan hujjat
+// ---------------------------------------------------------------------------
+
+export type PreviewData =
+  | { type: 'docx'; marked: Uint8Array; original: Uint8Array; originals: string[] }
+  | { type: 'paragraphs'; marked: string[]; original: string[]; originals: string[] }
+  | { type: 'text'; marked: string; original: string; originals: string[]; markdown: boolean };
+
+const officeParagraphs = async (data: Uint8Array, kind: 'xlsx' | 'pptx'): Promise<string[]> => {
+  const zip = await JSZip.loadAsync(data);
+  const { test, cfg } = OOXML_PARTS[kind];
+  const paths = Object.keys(zip.files)
+    .filter((p) => !zip.files[p].dir && test(p))
+    // slide2 < slide10 tartibida
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const out: string[] = [];
+  for (const p of paths) {
+    const texts = paragraphTexts(await zip.files[p].async('string'), cfg).filter((t) => t.trim());
+    if (texts.length && out.length) out.push('');
+    out.push(...texts);
   }
+  return out;
+};
 
-  if (lowerName.endsWith('.txt')) {
-    return await convertTxtFile(file, convertFn);
+/** Bitta faylning koʻrinishini tayyorlaydi (asosiy oqimda, bitta fayl uchun tez). */
+export const buildPreview = async (data: Uint8Array, name: string, opts: ConvertOptions): Promise<PreviewData> => {
+  const kind = kindOf(name);
+  const originals: string[] = [];
+  const markOpts: ConvertOptions = { ...opts, markSink: originals };
+  if (kind === 'docx') {
+    const r = await convertOfficeBytes(data, 'docx', markOpts);
+    return { type: 'docx', marked: r.data, original: data, originals };
   }
-
-  if (lowerName.endsWith('.zip')) {
-    return await convertZipArchive(file, convertFn);
+  if (kind === 'xlsx' || kind === 'pptx') {
+    const r = await convertOfficeBytes(data, kind, markOpts);
+    return { type: 'paragraphs', marked: await officeParagraphs(r.data, kind), original: await officeParagraphs(data, kind), originals };
   }
+  if (kind === 'text' || kind === 'markdown') {
+    const { text } = decodeTextBytes(data);
+    const marked = convertTextWithStats(text, { ...markOpts, markdown: kind === 'markdown' }).text;
+    return { type: 'text', marked, original: text, originals, markdown: kind === 'markdown' };
+  }
+  throw new Error('Bu fayl turini körib bölmaydi.');
+};
 
-  throw new Error(
-    'Faqat Word (.docx), matn (.txt) yoki ZIP (.zip) formatidagi fayllar qoʻllab-quvvatlanadi.'
-  );
+/** Asl (yuklangan) ZIP ichidan bitta faylni oʻqish. */
+export const readZipEntry = async (zipFile: Blob, path: string): Promise<Uint8Array> => {
+  const zip = await JSZip.loadAsync(zipFile, { decodeFileName: decodeZipName });
+  const entry = zip.file(path);
+  if (!entry) throw new Error('Fayl arxivda topilmadi');
+  return entry.async('uint8array');
 };

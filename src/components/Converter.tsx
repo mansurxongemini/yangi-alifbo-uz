@@ -1,194 +1,304 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Copy,
-  Check,
-  Download,
-  Upload,
-  ArrowRightLeft,
-  X,
-  FileText,
-  FileArchive,
+  AlertTriangle,
+  ArrowRight,
   ChevronDown,
-  Loader2,
+  ArrowRightLeft,
+  Check,
   CheckCircle2,
+  Code,
+  Copy,
+  Download,
+  FileArchive,
+  FileCheck2,
+  Eye,
+  FileText,
+  Highlighter,
+  Info,
+  Files,
+  Loader2,
+  MinusCircle,
+  Type,
+  Upload,
+  X,
+  XCircle,
 } from 'lucide-react';
 import {
-  eskiLotinToYangiLotin,
-  kirillToYangiLotin,
-  yangiLotinToEskiLotin,
-  yangiLotinToKirill,
-  autoTransliterate,
-} from '../core/transliterate';
-import { detectScript } from '../core/detector';
+  convertText,
+  convertTextWithStats,
+  detectScripts,
+  Script,
+  SourceHint,
+  SCRIPT_LABELS,
+} from '../core/engine';
 import {
-  processUploadedFile,
+  ACCEPT_ATTR,
+  CancelledError,
   ConvertResult,
-  ConvertedItem,
+  buildPreview,
+  extractFromZip,
+  readZipEntry,
   formatFileSize,
-  SourceScript,
-  TargetScript,
+  kindOf,
+  MAX_FILE_SIZE,
+  ProgressInfo,
+  ReportItem,
 } from '../utils/fileConverter';
+import { startConversion, ConversionJob } from '../utils/runConversion';
+import { MarkdownView, renderMarkdown } from './MarkdownView';
+import { DocumentPreview } from './DocumentPreview';
+import { markersToHtml, renderMarked } from '../utils/marks';
 
 interface ConverterProps {
   onOpenTable?: () => void;
 }
 
-interface UploadedFileInfo {
-  file: File;
-  name: string;
-  size: number;
-  extension: string;
-}
+const KEYCAPS = ['Ö', 'Ğ', 'Ş', 'Ç', 'ö', 'ğ', 'ş', 'ç', 'ʼ'];
 
-// 1-rasmdagi minimalist keycap harflari (Yangi alifbo):
-// Ö Ğ Ş Ç   ö ğ ş ç   ʼ -
-const KEYCAP_LETTERS = [
-  { label: 'Ö', char: 'Ö' },
-  { label: 'Ğ', char: 'Ğ' },
-  { label: 'Ş', char: 'Ş' },
-  { label: 'Ç', char: 'Ç' },
-  { label: 'ö', char: 'ö' },
-  { label: 'ğ', char: 'ğ' },
-  { label: 'ş', char: 'ş' },
-  { label: 'ç', char: 'ç' },
-  { label: 'ʼ', char: 'ʼ' },
-  { label: '-', char: '-' },
+const SOURCE_OPTIONS: { value: SourceHint; label: string }[] = [
+  { value: 'auto', label: 'Avto-aniqlaş' },
+  { value: 'cyrillic', label: 'Kirill' },
+  { value: 'old_latin', label: 'Eski lotin' },
+  { value: 'new_latin', label: 'Yangi lotin' },
+];
+const TARGET_OPTIONS: { value: Script; label: string }[] = [
+  { value: 'new_latin', label: 'Yangi lotin' },
+  { value: 'old_latin', label: 'Eski lotin' },
+  { value: 'cyrillic', label: 'Kirill' },
 ];
 
+const LANG_ATTR: Record<Script, string> = { cyrillic: 'uz-Cyrl', old_latin: 'uz-Latn', new_latin: 'uz-Latn' };
+
+const store = {
+  get<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+    try {
+      const v = localStorage.getItem(key) as T | null;
+      return v && allowed.includes(v) ? v : fallback;
+    } catch {
+      return fallback;
+    }
+  },
+  set(key: string, value: string) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      /* private rejim */
+    }
+  },
+};
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+};
+
+// Raqamlarni boʻsh joy bilan guruhlash: 12 954
+const nf = new Intl.NumberFormat('ru-RU');
+
+const STATUS_META: Record<ReportItem['status'], { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
+  converted: { label: 'Ögirildi', cls: 'text-[var(--success)]', Icon: CheckCircle2 },
+  unchanged: { label: 'Özgarişsiz', cls: 'text-[var(--text-tertiary)]', Icon: MinusCircle },
+  skipped: { label: 'Ötkazib yuborildi', cls: 'text-[var(--warning)]', Icon: Info },
+  error: { label: 'Xato', cls: 'text-[var(--danger)]', Icon: XCircle },
+};
+
+// ---------------------------------------------------------------------------
+
+/** Yozuv tanlovi: nomi va ▾ belgisi bilan matn-tugma, bosilganda roʻyxat ochiladi. */
+const ScriptMenu = <T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  const current = options.find((o) => o.value === value)?.label ?? value;
+  return (
+    <div ref={ref} className="relative min-w-0">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${label}: ${current}`}
+        onClick={() => setOpen((v) => !v)}
+        className="press h-10 max-w-full px-3 rounded-lg inline-flex items-center gap-1.5 text-[15px] sm:text-base font-medium text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] cursor-pointer"
+      >
+        <span className="truncate">{current}</span>
+        <ChevronDown className={`w-4 h-4 text-[var(--text-tertiary)] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label={label}
+          className="rise absolute z-40 left-0 top-full mt-1.5 min-w-[220px] p-1.5 rounded-xl bg-[var(--bg-panel)] border border-[var(--border-subtle)] shadow-[var(--shadow-pop)]"
+        >
+          <li className="px-3 pt-1.5 pb-1 text-[11px] font-medium text-[var(--text-tertiary)]">{label}</li>
+          {options.map((o) => {
+            const on = o.value === value;
+            return (
+              <li key={o.value}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={on}
+                  data-value={o.value}
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  className={`w-full h-9 px-3 rounded-lg flex items-center justify-between gap-3 text-sm text-left cursor-pointer ${
+                    on ? 'text-[var(--accent)] font-medium' : 'text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)]'
+                  }`}
+                >
+                  {o.label}
+                  {on && <Check className="w-4 h-4" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+const IconButton: React.FC<
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string; active?: boolean }
+> = ({ label, active, className, children, ...rest }) => (
+  <button
+    type="button"
+    title={label}
+    aria-label={label}
+    className={`press h-8 min-w-8 px-2 inline-flex items-center justify-center gap-1.5 rounded-lg text-xs font-medium cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed ${
+      active
+        ? 'bg-[var(--accent-subtle)] text-[var(--accent)]'
+        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)]'
+    } ${className ?? ''}`}
+    {...rest}
+  >
+    {children}
+  </button>
+);
+
+// ---------------------------------------------------------------------------
+
 export const Converter: React.FC<ConverterProps> = () => {
-  const [inputText, setInputText] = useState<string>('');
-  const [outputText, setOutputText] = useState<string>('');
-  const [sourceScript, setSourceScript] = useState<SourceScript>('auto');
-  const [targetScript, setTargetScript] = useState<TargetScript>('new_latin');
-  const [copied, setCopied] = useState<boolean>(false);
-  const [isDragOver, setIsDragOver] = useState<boolean>(false);
+  const [inputText, setInputText] = useState('');
+  const [source, setSource] = useState<SourceHint>(() =>
+    store.get('src', ['auto', 'cyrillic', 'old_latin', 'new_latin'] as const, 'auto')
+  );
+  const [target, setTarget] = useState<Script>(() =>
+    store.get('dst', ['new_latin', 'old_latin', 'cyrillic'] as const, 'new_latin')
+  );
+  const [markdown, setMarkdown] = useState<boolean>(() => store.get('md', ['1', '0'] as const, '1') === '1');
+  const [copied, setCopied] = useState(false);
+  const [showChanges, setShowChanges] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
 
-  // Fayl yuklash (Inline - Modalsiz) statelari
-  const [uploadedFile, setUploadedFile] = useState<UploadedFileInfo | null>(null);
-  const [isConvertingFile, setIsConvertingFile] = useState<boolean>(false);
-  const [convertResult, setConvertResult] = useState<ConvertResult | null>(null);
-  const [convertError, setConvertError] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<'text' | 'files'>('text');
+  const [progress, setProgress] = useState<ProgressInfo | null>(null);
+  const [result, setResult] = useState<ConvertResult | null>(null);
+  const [resultKey, setResultKey] = useState('');
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [onlyProblems, setOnlyProblems] = useState(false);
+  /** Koʻrilayotgan fayl: '' — yuklangan faylning oʻzi, aks holda arxiv ichidagi yoʻl */
+  const [previewPath, setPreviewPath] = useState<string | null>(null);
 
+  const jobRef = useRef<ConversionJob | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
 
-  // Matn transliteratsiyasi (agar oddiy matn boʻlsa)
-  useEffect(() => {
-    if (uploadedFile) return;
+  useEffect(() => store.set('src', source), [source]);
+  useEffect(() => store.set('dst', target), [target]);
+  useEffect(() => store.set('md', markdown ? '1' : '0'), [markdown]);
+  useEffect(() => () => jobRef.current?.cancel(), []);
 
-    if (!inputText.trim()) {
-      setOutputText('');
-      return;
-    }
+  // ---------------- Matn ----------------
+  const deferredInput = useDeferredValue(inputText);
+  const converted = useMemo(
+    () => convertTextWithStats(deferredInput, { from: source, to: target, markdown }),
+    [deferredInput, source, target, markdown]
+  );
+  // «Oʻzgarishlar» rejimi: oʻzgargan soʻzlar belgilangan koʻrinish
+  const markedView = useMemo(() => {
+    if (!showChanges) return null;
+    const originals: string[] = [];
+    const text = convertText(deferredInput, { from: source, to: target, markdown, markSink: originals });
+    return {
+      originals,
+      html: markdown ? markersToHtml(renderMarkdown(text), originals) : null,
+      nodes: markdown ? null : renderMarked(text, originals),
+    };
+  }, [showChanges, deferredInput, source, target, markdown]);
+  const outputText = converted.text;
+  const detection = useMemo(() => detectScripts(deferredInput), [deferredInput]);
 
-    let result = '';
-    if (sourceScript === 'auto') {
-      const autoRes = autoTransliterate(inputText, 'new_latin');
-      result = autoRes.result;
-    } else if (sourceScript === 'eski_lotin' && targetScript === 'new_latin') {
-      result = eskiLotinToYangiLotin(inputText);
-    } else if (sourceScript === 'cyrillic' && targetScript === 'new_latin') {
-      result = kirillToYangiLotin(inputText);
-    } else if (sourceScript === 'new_latin' && targetScript === 'eski_lotin') {
-      result = yangiLotinToEskiLotin(inputText);
-    } else if (sourceScript === 'new_latin' && targetScript === 'cyrillic') {
-      result = yangiLotinToKirill(inputText);
-    } else {
-      result = eskiLotinToYangiLotin(inputText);
-    }
+  const settingsKey = `${source}|${target}`;
+  const isConverting = progress !== null;
+  const resultStale = !!result && resultKey !== settingsKey;
 
-    setOutputText(result);
-  }, [inputText, sourceScript, targetScript, uploadedFile]);
-
-  // Manba oʻzgarganda
-  const handleSourceChange = (newSource: SourceScript) => {
-    setSourceScript(newSource);
-    if (newSource === 'auto' || newSource === 'eski_lotin' || newSource === 'cyrillic') {
-      setTargetScript('new_latin');
-    } else if (newSource === 'new_latin') {
-      if (targetScript === 'new_latin') {
-        setTargetScript('eski_lotin');
-      }
-    }
-  };
-
-  // Natija oʻzgarganda
-  const handleTargetChange = (newTarget: TargetScript) => {
-    setTargetScript(newTarget);
-    if (newTarget === 'eski_lotin' || newTarget === 'cyrillic') {
-      setSourceScript('new_latin');
-    } else if (newTarget === 'new_latin') {
-      if (sourceScript === 'new_latin') {
-        setSourceScript('auto');
-      }
-    }
-  };
-
-  // ⇄ Yoʻnalishni almashtirish
+  // ---------------- Yoʻnalish ----------------
   const handleSwap = () => {
-    if (uploadedFile) {
-      // Agar fayl yuklangan boʻlsa, yoʻnalishni oʻzgartirish
-      const nextSource: SourceScript = sourceScript === 'new_latin' ? 'eski_lotin' : 'new_latin';
-      const nextTarget: TargetScript = nextSource === 'new_latin' ? 'eski_lotin' : 'new_latin';
-      setSourceScript(nextSource);
-      setTargetScript(nextTarget);
-      setConvertResult(null);
-      return;
-    }
-
-    const nextInput = outputText;
-    let nextSource: SourceScript = 'new_latin';
-    let nextTarget: TargetScript = 'new_latin';
-
-    if (sourceScript === 'auto') {
-      nextSource = 'new_latin';
-      const detection = detectScript(inputText);
-      nextTarget = detection.detectedScript === 'cyrillic' ? 'cyrillic' : 'eski_lotin';
-    } else if (sourceScript === 'eski_lotin') {
-      nextSource = 'new_latin';
-      nextTarget = 'eski_lotin';
-    } else if (sourceScript === 'cyrillic') {
-      nextSource = 'new_latin';
-      nextTarget = 'cyrillic';
-    } else if (sourceScript === 'new_latin') {
-      nextSource = targetScript === 'cyrillic' ? 'cyrillic' : 'eski_lotin';
-      nextTarget = 'new_latin';
-    }
-
-    setSourceScript(nextSource);
-    setTargetScript(nextTarget);
-    if (nextInput) {
-      setInputText(nextInput);
-    }
+    const effective: Script = source === 'auto' ? (detection.dominant ?? 'cyrillic') : source;
+    const nextTarget: Script = effective === target ? (target === 'new_latin' ? 'cyrillic' : 'new_latin') : effective;
+    setSource(target);
+    setTarget(nextTarget);
+    if (mode === 'text' && outputText) setInputText(outputText);
   };
 
-  // Kursor oʻrniga belgi qoʻyish
-  const insertChar = (char: string) => {
+  const insertChar = (ch: string) => {
     const el = textareaRef.current;
     if (!el) {
-      setInputText((prev) => prev + char);
+      setInputText((p) => p + ch);
       return;
     }
-
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const current = inputText;
-    const updated = current.substring(0, start) + char + current.substring(end);
-    setInputText(updated);
-
-    setTimeout(() => {
+    const { selectionStart: s, selectionEnd: e } = el;
+    setInputText(inputText.slice(0, s) + ch + inputText.slice(e));
+    requestAnimationFrame(() => {
       el.focus();
-      el.setSelectionRange(start + char.length, start + char.length);
-    }, 0);
+      el.setSelectionRange(s + ch.length, s + ch.length);
+    });
   };
 
-  // Matndan nusxalash
   const handleCopy = async () => {
     if (!outputText) return;
     try {
-      await navigator.clipboard.writeText(outputText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (markdown && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+        // Word/Google Docs ga formatlangan holda, oddiy maydonga matn sifatida joylashadi
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': new Blob([renderMarkdown(outputText)], { type: 'text/html' }),
+            'text/plain': new Blob([outputText], { type: 'text/plain' }),
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(outputText);
+      }
     } catch {
       const ta = document.createElement('textarea');
       ta.value = outputText;
@@ -196,413 +306,628 @@ export const Converter: React.FC<ConverterProps> = () => {
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  // Natija matnini .txt sifatida yuklab olish
   const handleDownloadText = () => {
     if (!outputText) return;
-    const blob = new Blob([outputText], { type: 'text/plain;charset=utf-8' });
-    downloadBlob(blob, `yangi-alifbo-${new Date().toISOString().slice(0, 10)}.txt`);
+    const ext = markdown ? 'md' : 'txt';
+    downloadBlob(
+      new Blob(['﻿' + outputText], { type: 'text/plain;charset=utf-8' }),
+      `matn_${new Date().toISOString().slice(0, 10)}.${ext}`
+    );
   };
 
-  // Umumiy blob yuklab berish funksiyasi
-  const downloadBlob = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  // ---------------- Fayl ----------------
+  const resetFileState = () => {
+    jobRef.current?.cancel();
+    jobRef.current = null;
+    setProgress(null);
+    setResult(null);
+    setFileError(null);
+    setOnlyProblems(false);
+    setPreviewPath(null);
   };
 
-  // Fayl tanlash
-  const handleFileSelect = (file: File) => {
-    const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    setUploadedFile({
-      file,
-      name: file.name,
-      size: file.size,
-      extension: ext,
-    });
-    setConvertResult(null);
-    setConvertError(null);
+  const handleFileSelect = (f: File) => {
+    resetFileState();
+    setMode('files');
+    if (f.size > MAX_FILE_SIZE) {
+      setFile(f);
+      setFileError(`Fayl juda katta (${formatFileSize(f.size)}). Eng köpi bilan ${formatFileSize(MAX_FILE_SIZE)}.`);
+      return;
+    }
+    setFile(f);
+    if (kindOf(f.name) === 'unsupported') {
+      setFileError('Bu format qöllab-quvvatlanmaydi. Word (.docx), Excel (.xlsx), PowerPoint (.pptx), matn (.txt, .md) yoki ZIP arxiv yuklang.');
+    }
   };
 
-  // Faylni oʻgirish (foydalanuvchi "Oʻgirish"ni bosganda ishlaydi)
-  const handleConvertFile = async () => {
-    if (!uploadedFile) return;
-    setIsConvertingFile(true);
-    setConvertError(null);
+  const handleConvertFile = useCallback(async () => {
+    if (!file) return;
+    resetFileState();
+    setProgress({ phase: 'reading', done: 0, total: 0 });
+    const job = startConversion(file, { from: source, to: target }, (p) => setProgress(p));
+    jobRef.current = job;
     try {
-      const res = await processUploadedFile(
-        uploadedFile.file,
-        sourceScript,
-        targetScript
-      );
-      setConvertResult(res);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Faylni ögirişda xatolik yuz berdi.';
-      setConvertError(msg);
+      const res = await job.promise;
+      if (jobRef.current !== job) return;
+      setResult(res);
+      setResultKey(`${source}|${target}`);
+      if (res.report.some((r) => r.status === 'error')) setOnlyProblems(res.report.length > 8);
+    } catch (err) {
+      if (jobRef.current !== job) return;
+      if (!(err instanceof CancelledError)) {
+        setFileError(err instanceof Error ? err.message : 'Faylni ögirişda xatolik yuz berdi.');
+      }
     } finally {
-      setIsConvertingFile(false);
+      if (jobRef.current === job) {
+        jobRef.current = null;
+        setProgress(null);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file, source, target]);
+
+  const handleCancel = () => {
+    jobRef.current?.cancel();
+    jobRef.current = null;
+    setProgress(null);
   };
 
-  // Faylni olib tashlash va matn rejimiga qaytish
   const handleClearFile = () => {
-    setUploadedFile(null);
-    setConvertResult(null);
-    setConvertError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    resetFileState();
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const downloadItem = async (path: string) => {
+    if (!result) return;
+    try {
+      const blob = await extractFromZip(result.blob, path);
+      downloadBlob(blob, path.split('/').pop() || path);
+    } catch (e) {
+      setFileError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  // Drag and Drop
-  const handleDragOver = (e: React.DragEvent) => {
+  const loadPreview = useCallback(async () => {
+    if (!file || previewPath === null) throw new Error('Fayl yöq');
+    const opts = { from: source, to: target };
+    if (previewPath === '') return buildPreview(new Uint8Array(await file.arrayBuffer()), file.name, opts);
+    return buildPreview(await readZipEntry(file, previewPath), previewPath, opts);
+  }, [file, previewPath, source, target]);
+
+  // Drag & drop (ichki elementlar ustida miltillamasligi uchun hisoblagich)
+  const onDragEnter = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
+    dragDepth.current++;
     setIsDragOver(true);
   };
-
-  const handleDragLeave = (e: React.DragEvent) => {
+  const onDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setIsDragOver(false);
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepth.current = 0;
     setIsDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) handleFileSelect(f);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFileSelect(file);
-  };
+  // ---------------- Hisobot ----------------
+  const counts = useMemo(() => {
+    const c = { converted: 0, unchanged: 0, skipped: 0, error: 0 };
+    result?.report.forEach((r) => c[r.status]++);
+    return c;
+  }, [result]);
+  const visibleReport = useMemo(
+    () => (result ? (onlyProblems ? result.report.filter((r) => r.status === 'error' || r.status === 'skipped') : result.report) : []),
+    [result, onlyProblems]
+  );
+
+  // ---------------- Aniqlash xabari ----------------
+  const notice = useMemo(() => {
+    if (mode === 'files' || detection.words === 0) return null;
+    const parts = (Object.entries(detection.shares) as [Script, number][])
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1]);
+    if (detection.mixed) {
+      return {
+        tone: 'info' as const,
+        text: `Aralaş: ${parts.map(([k, v]) => `${SCRIPT_LABELS[k]} ${v}%`).join(' · ')}`,
+      };
+    }
+    if (source !== 'auto' && detection.dominant && detection.dominant !== source && detection.words >= 2) {
+      return {
+        tone: 'warn' as const,
+        text: `Aniqlandi: ${SCRIPT_LABELS[detection.dominant]}`,
+      };
+    }
+    if (detection.dominant) {
+      return {
+        tone: 'muted' as const,
+        text: source === 'auto' ? `Aniqlandi: ${SCRIPT_LABELS[detection.dominant]}` : '',
+      };
+    }
+    return null;
+  }, [detection, source, target, mode]);
+
+
+  // =========================================================================
+
+  const formatChips = ['.docx', '.xlsx', '.pptx', '.txt', '.md', '.zip'];
 
   return (
-    <div className="w-full max-w-[1200px] mx-auto px-4 sm:px-6 py-6 space-y-4">
-      
-      {/* Yashirin fayl kiritish inputi */}
+    <div className="w-full max-w-[1200px] mx-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-16">
       <input
         ref={fileInputRef}
         type="file"
-        accept=".txt,.docx,.zip"
+        accept={ACCEPT_ATTR}
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFileSelect(file);
+          const f = e.target.files?.[0];
+          if (f) handleFileSelect(f);
+          e.target.value = '';
         }}
         className="hidden"
         id="file-upload-input"
       />
 
-      {/* ===================== 1) REJIMLAR TANLASH (1-RASM USLUBIDAGI DROPDOWNLAR) ===================== */}
-      <div className="bg-[var(--bg-panel)] rounded-2xl border border-[var(--border-subtle)] p-2 shadow-xs flex items-center justify-between gap-2 sm:gap-4 transition-colors">
-        
-        {/* Chap: Manba dropdown va alohida Fayl yuklash tugmasi */}
-        <div className="flex-1 flex items-center gap-2 min-w-0">
+      {/* ============ Rejim tablari (yuqorida, tabletka) ============ */}
+      <div className="rise flex items-center justify-between gap-3 mb-4">
+        <div role="tablist" aria-label="Rejim" className="flex gap-2">
+          {([
+            { key: 'text', label: 'Matn', Icon: Type },
+            { key: 'files', label: 'Hujjatlar', Icon: Files },
+          ] as const).map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={mode === key}
+              onClick={() => setMode(key)}
+              className={`press h-10 pl-3.5 pr-4 rounded-full inline-flex items-center gap-2 text-[15px] font-medium cursor-pointer ${
+                mode === key
+                  ? 'bg-[var(--bg-panel)] text-[var(--text-primary)] shadow-[var(--shadow-card)]'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-panel)]/60'
+              }`}
+            >
+              <Icon className="w-[18px] h-[18px]" />
+              {label}
+              {key === 'files' && file && <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" aria-label="fayl yuklangan" />}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ============ Konvertor ============ */}
+      <div
+        className="rise rise-1 relative bg-[var(--bg-panel)] rounded-2xl shadow-[var(--shadow-card)]"
+        onDragEnter={onDragEnter}
+        onDragOver={(e) => e.preventDefault()}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
+        {/* Yozuv tanlovi */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center h-14 px-2 sm:px-3 border-b border-[var(--border-subtle)]">
+          <ScriptMenu label="Manba" value={source} options={SOURCE_OPTIONS} onChange={setSource} />
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#1EA0D2] bg-[#1EA0D2]/10 hover:bg-[#1EA0D2]/20 border border-[#1EA0D2]/30 rounded-xl transition-all cursor-pointer shrink-0"
-            title="Word (.docx), Matn (.txt) yoki ZIP (.zip) fayl yuklaş"
-            aria-label="Fayl yuklaş"
+            onClick={handleSwap}
+            disabled={isConverting}
+            className="press w-10 h-10 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] flex items-center justify-center cursor-pointer disabled:opacity-50"
+            title="Yönalişni almaştiriş"
+            aria-label="Yönalişni almaştiriş"
           >
-            <Upload className="w-4 h-4 text-[#1EA0D2]" />
-            <span className="hidden sm:inline">Fayl yuklaş</span>
+            <ArrowRightLeft className="w-5 h-5" />
           </button>
-
-          <div className="relative flex-1 max-w-[260px]">
-            <select
-              value={sourceScript}
-              onChange={(e) => handleSourceChange(e.target.value as SourceScript)}
-              className="w-full appearance-none bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] hover:border-[#1EA0D2]/40 text-[var(--text-primary)] text-xs sm:text-sm font-medium rounded-xl py-2 pl-3 pr-8 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1EA0D2]"
-            >
-              <option value="auto">Avto-aniqlaş</option>
-              <option value="eski_lotin">Eski lotin</option>
-              <option value="cyrillic">Kirill</option>
-              <option value="new_latin">Yangi lotin</option>
-            </select>
-            <ChevronDown className="w-4 h-4 text-[var(--text-secondary)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <div className="md:pl-3">
+            <ScriptMenu label="Natija" value={target} options={TARGET_OPTIONS} onChange={setTarget} />
           </div>
         </div>
 
-        {/* Markaz: ⇄ Almashish tugmasi */}
-        <button
-          type="button"
-          onClick={handleSwap}
-          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#1EA0D2] hover:bg-[#198cb8] text-white flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
-          title="Yönalişni almaştiriş"
-          aria-label="Yönalişni almaştiriş"
-        >
-          <ArrowRightLeft className="w-4 h-4" />
-        </button>
-
-        {/* Oʻng: Natija dropdown va fayl ikonkasi */}
-        <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-          <div className="relative flex-1 max-w-[260px]">
-            <select
-              value={targetScript}
-              onChange={(e) => handleTargetChange(e.target.value as TargetScript)}
-              className="w-full appearance-none bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] hover:border-[#1EA0D2]/40 text-[var(--text-primary)] text-xs sm:text-sm font-medium rounded-xl py-2 pl-3 pr-8 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1EA0D2]"
-            >
-              <option value="new_latin">Yangi lotin (Ö, Ğ, Ş, Ç)</option>
-              <option value="eski_lotin">Eski lotin</option>
-              <option value="cyrillic">Kirill</option>
-            </select>
-            <ChevronDown className="w-4 h-4 text-[var(--text-secondary)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-
-          <div
-            className="p-2 sm:px-2.5 sm:py-2 text-[var(--text-tertiary)] bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl shrink-0 select-none"
-            title="Natija formati"
-          >
-            <FileText className="w-4 h-4 text-[#1EA0D2]" />
-          </div>
-        </div>
-
-      </div>
-
-      {/* ===================== 2) ASOSIY MATN VA FAYL PANELLARI (1-RASM BOʻYICHA) ===================== */}
-      <div 
-        className="bg-[var(--bg-panel)] rounded-2xl border border-[var(--border-subtle)] shadow-xs overflow-hidden transition-colors relative"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--border-subtle)] min-h-[420px]">
-          
-          {/* ===================== CHAP PANEL (KIRITISH) ===================== */}
-          <div className="flex flex-col p-4 sm:p-5 relative">
-            
-            {/* Yuqori: Keycap harflar */}
-            {!uploadedFile && (
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-4">
-                {KEYCAP_LETTERS.map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => insertChar(item.char)}
-                    className="h-8 min-w-[32px] px-2 rounded-lg bg-[var(--bg-surface-raised)] hover:bg-[var(--accent-subtle)] border border-[var(--border-subtle)] hover:border-[#1EA0D2]/40 text-xs sm:text-sm font-medium text-[var(--text-primary)] transition-all cursor-pointer shadow-2xs active:scale-95"
-                    title={`${item.label} harfini kiritiş`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 min-h-[460px]">
+          {/* ---------- Chap: kiritish ---------- */}
+          <section className="flex flex-col min-w-0" aria-label="Manba matn">
+            {mode === 'text' && (
+              <div className="h-12 px-3 sm:px-4 pt-2 flex items-center gap-2">
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0" role="toolbar" aria-label="Yangi harflar">
+                  {KEYCAPS.map((ch) => (
+                    <button
+                      key={ch}
+                      type="button"
+                      onClick={() => insertChar(ch)}
+                      className="press h-7 min-w-7 px-1.5 rounded-md bg-[var(--bg-surface-raised)] hover:bg-[var(--accent-subtle)] hover:text-[var(--accent)] text-sm font-medium text-[var(--text-primary)] cursor-pointer shrink-0"
+                      title={ch === 'ʼ' ? 'Tutuq belgisi ʼ (U+02BC)' : `«${ch}» harfini qöşiş`}
+                    >
+                      {ch}
+                    </button>
+                  ))}
+                </div>
+                <IconButton
+                  label={markdown ? 'Markdown yoqilgan. Xom matn (raw) rejimiga ötiş' : 'Xom matn (raw) rejimi. Markdownni yoqiş'}
+                  active={!markdown}
+                  aria-pressed={!markdown}
+                  onClick={() => setMarkdown((m) => !m)}
+                >
+                  <Code className="w-4 h-4" />
+                </IconButton>
+                <IconButton label="Tozalaş" disabled={!inputText} onClick={() => setInputText('')}>
+                  <X className="w-4 h-4" />
+                </IconButton>
               </div>
             )}
 
-            {/* FAYL YUKLANGAN BOʻLSA: INLINE FAYL KARTASI (MODALSIZ!) */}
-            {uploadedFile ? (
-              <div className="flex-1 flex flex-col justify-center items-center p-6 text-center animate-in fade-in duration-150">
-                <div className="w-full max-w-md p-5 rounded-2xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] text-left space-y-4">
-                  
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-12 h-12 rounded-xl bg-[#1EA0D2]/15 text-[#1EA0D2] flex items-center justify-center shrink-0">
-                        {uploadedFile.extension === 'zip' ? (
-                          <FileArchive className="w-6 h-6" />
-                        ) : (
-                          <FileText className="w-6 h-6" />
-                        )}
+            {mode === 'files' ? (
+              file ? (
+                <div className="flex-1 flex items-center justify-center p-5 sm:p-8">
+                  <div className="w-full max-w-md space-y-4">
+                    <div className="flex items-start gap-3 p-4 rounded-2xl bg-[var(--bg-surface-raised)]">
+                      <div className="w-11 h-11 rounded-xl bg-[var(--bg-panel)] text-[var(--accent)] shadow-[var(--shadow-sm)] flex items-center justify-center shrink-0">
+                        {kindOf(file.name) === 'zip' ? <FileArchive className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[var(--text-primary)] truncate" title={uploadedFile.name}>
-                          {uploadedFile.name}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-[var(--text-primary)] break-all line-clamp-2" title={file.name}>
+                          {file.name}
                         </p>
-                        <p className="text-xs text-[var(--text-secondary)] mt-0.5 uppercase tracking-wider">
-                          {uploadedFile.extension} &middot; {formatFileSize(uploadedFile.size)}
+                        <p className="text-xs text-[var(--text-secondary)] mt-0.5 tabular-nums">
+                          {file.name.split('.').pop()?.toUpperCase()} · {formatFileSize(file.size)}
                         </p>
                       </div>
+                      <IconButton label="Faylni olib taşlaş" onClick={handleClearFile}>
+                        <X className="w-4 h-4" />
+                      </IconButton>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleClearFile}
-                      className="p-1.5 text-[var(--text-secondary)] hover:text-red-500 rounded-lg transition-colors cursor-pointer"
-                      title="Faylni bekor qiliş"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                    {fileError && (
+                      <div role="alert" className="flex items-start gap-2 text-sm text-[var(--danger)] bg-[var(--danger)]/8 p-3 rounded-xl border border-[var(--danger)]/20">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                        <span>{fileError}</span>
+                      </div>
+                    )}
+
+                    {isConverting && progress ? (
+                      <ProgressPanel progress={progress} onCancel={handleCancel} />
+                    ) : (
+                      kindOf(file.name) !== 'unsupported' &&
+                      file.size <= MAX_FILE_SIZE &&
+                      (!result || resultStale) && (
+                        <button
+                          type="button"
+                          onClick={handleConvertFile}
+                          className="press w-full h-11 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text-on)] text-sm font-semibold flex items-center justify-center gap-2 shadow-[var(--shadow-sm)] cursor-pointer"
+                        >
+                          {resultStale ? 'Qayta ögiriş' : 'Ögiriş'}
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      )
+                    )}
+
+                    {result && !isConverting && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full text-sm font-medium text-[var(--accent)] hover:underline underline-offset-4 cursor-pointer"
+                      >
+                        Boşqa fayl tanlaş
+                      </button>
+                    )}
                   </div>
-
-                  {convertError && (
-                    <p className="text-xs text-red-500 bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
-                      {convertError}
-                    </p>
-                  )}
-
-                  {/* Ögiriş tugmasi */}
-                  {!convertResult && (
-                    <button
-                      type="button"
-                      onClick={handleConvertFile}
-                      disabled={isConvertingFile}
-                      className="w-full py-2.5 px-4 rounded-xl bg-[#1EA0D2] hover:bg-[#198cb8] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-                    >
-                      {isConvertingFile ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Ögirilmoqda...</span>
-                        </>
-                      ) : (
-                        <span>Ögiriş</span>
-                      )}
-                    </button>
-                  )}
-
-                  {convertResult && (
-                    <div className="flex items-center gap-2 text-xs font-medium text-[var(--success)] bg-[var(--success)]/10 p-2 rounded-lg border border-[var(--success)]/20">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" />
-                      <span>Fayl muvaffaqiyatli ögirildi!</span>
-                    </div>
-                  )}
-
                 </div>
-              </div>
-            ) : (
-              /* ODDIY MATN KIRITISH MAYDONI */
-              <textarea
-                ref={textareaRef}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Matnni şu yerga yozing..."
-                className="w-full flex-1 min-h-[320px] bg-transparent resize-none border-0 p-0 text-base sm:text-lg text-[var(--text-primary)] placeholder-[var(--text-tertiary)] leading-relaxed focus:outline-none"
-                spellCheck="false"
-              />
-            )}
-
-          </div>
-
-          {/* ===================== OʻNG PANEL (NATIJA) ===================== */}
-          <div className="flex flex-col p-4 sm:p-5 relative bg-[var(--bg-panel)]">
-            
-            {/* Yuqori oʻng burchak: Faqat 2 ta minimalist ikonkali tugma (1-rasmdek) */}
-            <div className="flex items-center justify-end gap-1.5 mb-4">
-              <button
-                type="button"
-                onClick={handleCopy}
-                disabled={!outputText && !convertResult}
-                className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Nusxalaş"
-                aria-label="Nusxalaş"
-              >
-                {copied ? <Check className="w-4 h-4 text-[var(--success)]" /> : <Copy className="w-4 h-4" />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (convertResult) {
-                    downloadBlob(convertResult.blob, convertResult.newFilename);
-                  } else {
-                    handleDownloadText();
-                  }
-                }}
-                disabled={!outputText && !convertResult}
-                className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] rounded-xl transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Yuklab oliş"
-                aria-label="Yuklab oliş"
-              >
-                <Download className="w-4 h-4 text-[#1EA0D2]" />
-              </button>
-            </div>
-
-            {/* FAYL NATIJASI BOʻLSA (INLINE) */}
-            {uploadedFile && convertResult ? (
-              <div className="flex-1 flex flex-col justify-center items-center p-6 text-center animate-in fade-in duration-150">
-                <div className="w-full max-w-md p-5 rounded-2xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] text-left space-y-4">
-                  
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-[var(--success)]/15 text-[var(--success)] flex items-center justify-center shrink-0">
-                      {convertResult.isArchive ? (
-                        <FileArchive className="w-6 h-6" />
-                      ) : (
-                        <FileText className="w-6 h-6" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-[var(--text-primary)] truncate" title={convertResult.newFilename}>
-                        {convertResult.newFilename}
-                      </p>
-                      <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                        Tayyor &middot; {formatFileSize(convertResult.blob.size)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Asosiy yuklab olish tugmasi */}
+              ) : (
+                <div className="flex-1 p-4 sm:p-5 flex">
                   <button
                     type="button"
-                    onClick={() => downloadBlob(convertResult.blob, convertResult.newFilename)}
-                    className="w-full py-2.5 px-4 rounded-xl bg-[#1EA0D2] hover:bg-[#198cb8] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="group flex-1 rounded-2xl border-[1.5px] border-dashed border-[var(--border-hover)] hover:border-[var(--accent)] hover:bg-[var(--accent-subtle)]/50 transition-colors flex flex-col items-center justify-center text-center px-6 py-10 cursor-pointer"
                   >
-                    <Download className="w-4 h-4" />
-                    <span>{convertResult.isArchive ? 'Arxivni (.zip) yuklab oliş' : 'Faylni yuklab oliş'}</span>
+                    <span className="w-14 h-14 rounded-2xl bg-[var(--bg-panel)] shadow-[var(--shadow-card)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--accent)] mb-5 transition-transform group-hover:-translate-y-0.5">
+                      <Upload className="w-6 h-6" />
+                    </span>
+                    <span className="text-base font-medium text-[var(--text-primary)]">Fayl tanlang yoki taşlang</span>
+                    <span className="mt-4 flex flex-wrap justify-center gap-1.5">
+                      {formatChips.map((c) => (
+                        <span key={c} className="px-2 py-0.5 rounded-md bg-[var(--bg-surface-raised)] text-[11px] font-medium text-[var(--text-secondary)] tabular-nums">
+                          {c}
+                        </span>
+                      ))}
+                    </span>
                   </button>
-
-                  {/* Agar ZIP arxiv boʻlsa: Har bir faylni alohida yuklab olish roʻyxati */}
-                  {convertResult.isArchive && convertResult.archiveItems && convertResult.archiveItems.length > 0 && (
-                    <div className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
-                      <p className="text-xs font-semibold text-[var(--text-secondary)]">
-                        Içidagi fayllarni alohida yuklab oliş:
-                      </p>
-                      <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
-                        {convertResult.archiveItems.map((item: ConvertedItem, i: number) => (
-                          <div
-                            key={i}
-                            className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg-panel)] border border-[var(--border-subtle)] text-xs"
-                          >
-                            <span className="truncate max-w-[200px] text-[var(--text-primary)]" title={item.filename}>
-                              {item.filename}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => downloadBlob(item.blob, item.filename)}
-                              className="p-1 text-[#1EA0D2] hover:bg-[#1EA0D2]/10 rounded transition-colors cursor-pointer ml-2 shrink-0"
-                              title="Uşbu faylni yuklab oliş"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
+                </div>
+              )
+            ) : (
+              <div className="flex-1 flex flex-col">
+                <textarea
+                  ref={textareaRef}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Matn kiriting"
+                  aria-label="Ögiriladigan matn"
+                  className={`w-full flex-1 min-h-[300px] bg-transparent resize-none border-0 px-4 sm:px-5 py-4 text-[20px] text-[var(--text-primary)] placeholder-[var(--text-tertiary)] leading-[1.5] focus:outline-none focus-visible:outline-none ${
+                    markdown ? '' : 'font-mono text-[15px]'
+                  }`}
+                  spellCheck={false}
+                />
+                <div className="h-14 px-4 sm:px-5 flex items-center justify-between gap-3 text-xs text-[var(--text-tertiary)]">
+                  <span
+                    className={`truncate ${
+                      notice?.tone === 'warn' ? 'text-[var(--warning)]' : notice?.tone === 'info' ? 'text-[var(--accent)]' : ''
+                    }`}
+                    title={notice?.text}
+                  >
+                    {notice?.text}
+                  </span>
+                  <span className="tabular-nums shrink-0">
+                    {inputText ? nf.format(inputText.length) : ''}
+                  </span>
                 </div>
               </div>
-            ) : (
-              /* ODDIY NATIJA MATN MAYDONI */
-              <textarea
-                readOnly
-                value={outputText}
-                placeholder="Ögirilgan matn bu yerda aks etadi..."
-                className="w-full flex-1 min-h-[320px] bg-transparent resize-none border-0 p-0 text-base sm:text-lg text-[var(--text-primary)] placeholder-[var(--text-tertiary)] leading-relaxed focus:outline-none"
-                spellCheck="false"
-              />
             )}
+          </section>
 
-          </div>
-
+          {/* ---------- Oʻng: natija ---------- */}
+          <section className="flex flex-col min-w-0 bg-[var(--bg-sunken)] rounded-b-2xl md:rounded-bl-none md:rounded-br-2xl" aria-label="Natija" lang={LANG_ATTR[target]}>
+            {mode === 'files' ? (
+              <div className="flex-1 flex flex-col p-4 sm:p-5 min-h-0">
+                {file && result && !resultStale ? (
+                  <ResultPanel
+                    key={`${result.filename}|${result.blob.size}|${resultKey}`}
+                    result={result}
+                    counts={counts}
+                    visible={visibleReport}
+                    onlyProblems={onlyProblems}
+                    setOnlyProblems={setOnlyProblems}
+                    onDownload={() => downloadBlob(result.blob, result.filename)}
+                    onDownloadItem={downloadItem}
+                    onPreview={(path) => setPreviewPath(path ?? '')}
+                  />
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 px-6">
+                    {(resultStale || isConverting) && (
+                      <p className="text-sm text-[var(--text-secondary)]">{resultStale ? 'Sozlama özgardi' : 'Ögirilmoqda…'}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col min-h-0 md:pt-12">
+                <div className="flex-1 min-h-[300px] max-h-[70vh] overflow-auto px-4 sm:px-5 py-4">
+                  {outputText ? (
+                    markedView ? (
+                      markedView.html !== null ? (
+                        <div className="md-preview text-[20px] leading-[1.5]" dangerouslySetInnerHTML={{ __html: markedView.html }} />
+                      ) : (
+                        <pre className="whitespace-pre-wrap break-words font-mono text-[15px] leading-relaxed text-[var(--text-primary)] select-text">
+                          {markedView.nodes}
+                        </pre>
+                      )
+                    ) : markdown ? (
+                      <MarkdownView source={outputText} className="text-[20px] leading-[1.5]" />
+                    ) : (
+                      <pre className="whitespace-pre-wrap break-words font-mono text-[15px] leading-relaxed text-[var(--text-primary)] select-text">
+                        {outputText}
+                      </pre>
+                    )
+                  ) : (
+                    <p className="text-[20px] text-[var(--text-tertiary)] leading-[1.5]">Natija</p>
+                  )}
+                </div>
+                <div className="h-14 px-3 sm:px-4 flex items-center justify-between gap-3 text-xs text-[var(--text-tertiary)]">
+                  <span className="truncate pl-1">
+                    {converted.stats.changed > 0 && `${nf.format(converted.stats.changed)} ta özgariş`}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <IconButton
+                      label={showChanges ? 'Özgarişlarni yaşiriş' : 'Özgargan sözlarni belgilaş'}
+                      active={showChanges}
+                      aria-pressed={showChanges}
+                      disabled={!outputText}
+                      onClick={() => setShowChanges((v) => !v)}
+                      className="h-10 min-w-10"
+                    >
+                      <Highlighter className="w-5 h-5" />
+                    </IconButton>
+                    <IconButton label={copied ? 'Nusxa olindi' : 'Nusxa oliş'} disabled={!outputText} onClick={handleCopy} className="h-10 min-w-10">
+                      {copied ? <Check className="w-5 h-5 text-[var(--success)]" /> : <Copy className="w-5 h-5" />}
+                    </IconButton>
+                    <IconButton label={`Yuklab oliş (.${markdown ? 'md' : 'txt'})`} disabled={!outputText} onClick={handleDownloadText} className="h-10 min-w-10">
+                      <Download className="w-5 h-5" />
+                    </IconButton>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
 
-        {/* Drag and Drop vizual holati */}
         {isDragOver && (
-          <div className="absolute inset-0 z-30 bg-[var(--bg-panel)]/95 backdrop-blur-xs flex flex-col items-center justify-center border-2 border-dashed border-[#1EA0D2] rounded-2xl m-2">
-            <Upload className="w-10 h-10 text-[#1EA0D2] mb-2 animate-bounce" />
-            <p className="text-base font-semibold text-[var(--text-primary)]">
-              Faylni şu yerga taşlang
-            </p>
-            <p className="text-xs text-[var(--text-secondary)] mt-1">
-              Word (.docx), Matn (.txt) yoki ZIP (.zip) arxivlari
-            </p>
+          <div className="absolute inset-0 z-30 bg-[var(--bg-panel)]/92 backdrop-blur-sm flex flex-col items-center justify-center border-2 border-dashed border-[var(--accent)] rounded-2xl pointer-events-none">
+            <Upload className="w-9 h-9 text-[var(--accent)] mb-3" />
+            <p className="text-base font-semibold text-[var(--text-primary)]">Faylni qöyib yuboring</p>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">Word, Excel, PowerPoint, matn yoki ZIP arxiv</p>
           </div>
         )}
-
       </div>
 
+      {previewPath !== null && file && result && (
+        <DocumentPreview
+          title={previewPath === '' ? result.filename : previewPath}
+          load={loadPreview}
+          onClose={() => setPreviewPath(null)}
+          onDownload={() => (previewPath === '' ? downloadBlob(result.blob, result.filename) : downloadItem(previewPath))}
+        />
+      )}
+
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+
+const ProgressPanel: React.FC<{ progress: ProgressInfo; onCancel: () => void }> = ({ progress, onCancel }) => {
+  const pct =
+    progress.phase === 'packing'
+      ? 90 + Math.round((progress.percent ?? 0) / 10)
+      : progress.total > 0
+        ? Math.round((progress.done / progress.total) * 90)
+        : 3;
+  const label =
+    progress.phase === 'reading'
+      ? 'Fayl öqilmoqda…'
+      : progress.phase === 'packing'
+        ? `Arxivlanmoqda… ${Math.round(progress.percent ?? 0)}%`
+        : progress.total > 1
+          ? `${nf.format(progress.done)} / ${nf.format(progress.total)} fayl`
+          : 'Ögirilmoqda…';
+  return (
+    <div className="space-y-2.5" aria-live="polite">
+      <div className="flex items-center justify-between text-sm">
+        <span className="flex items-center gap-2 font-medium text-[var(--text-primary)]">
+          <Loader2 className="w-4 h-4 animate-spin text-[var(--accent)]" />
+          <span className="tabular-nums">{label}</span>
+        </span>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--danger)] px-2 py-1 rounded-md cursor-pointer"
+        >
+          Bekor qiliş
+        </button>
+      </div>
+      <div
+        className="h-2 rounded-full bg-[var(--bg-surface-raised)] overflow-hidden"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+      >
+        <div className="h-full bg-[var(--accent)] rounded-full transition-[width] duration-200" style={{ width: `${pct}%` }} />
+      </div>
+      {progress.current && progress.total > 1 && (
+        <p className="text-xs text-[var(--text-tertiary)] truncate" title={progress.current}>
+          {progress.current}
+        </p>
+      )}
+    </div>
+  );
+};
+
+const PREVIEWABLE = new Set(['docx', 'xlsx', 'pptx', 'text', 'markdown']);
+
+const ResultPanel: React.FC<{
+  result: ConvertResult;
+  counts: Record<ReportItem['status'], number>;
+  visible: ReportItem[];
+  onlyProblems: boolean;
+  setOnlyProblems: (v: boolean) => void;
+  onDownload: () => void;
+  onDownloadItem: (path: string) => void;
+  onPreview: (path: string | null) => void;
+}> = ({ result, counts, visible, onlyProblems, setOnlyProblems, onDownload, onDownloadItem, onPreview }) => {
+  const single = !result.isArchive ? result.report[0] : null;
+  const problems = counts.error + counts.skipped;
+  const canPreview = (path: string) => PREVIEWABLE.has(kindOf(path));
+  return (
+    <div className="flex-1 flex flex-col gap-4 min-h-0">
+      <div className="flex items-start gap-3 p-4 rounded-2xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)]">
+        <div className="w-11 h-11 rounded-xl bg-[var(--success)]/12 text-[var(--success)] flex items-center justify-center shrink-0">
+          {result.isArchive ? <FileArchive className="w-5 h-5" /> : <FileCheck2 className="w-5 h-5" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-[var(--text-primary)] break-all line-clamp-2" title={result.filename}>
+            {result.filename}
+          </p>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+            {formatFileSize(result.blob.size)} · {nf.format(result.stats.changed)} ta özgariş
+          </p>
+        </div>
+      </div>
+
+      <div className={`grid gap-2 ${single && canPreview(single.path) ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        {single && canPreview(single.path) && (
+          <button
+            type="button"
+            onClick={() => onPreview(null)}
+            className="h-11 rounded-xl border border-[var(--accent)]/40 text-[var(--accent)] bg-[var(--accent-subtle)] hover:bg-[var(--accent)]/15 text-sm font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          >
+            <Eye className="w-4 h-4" />
+            Körish
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onDownload}
+          className="h-11 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text-on)] text-sm font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--accent)]"
+        >
+          <Download className="w-4 h-4" />
+          {result.isArchive ? 'Arxivni yuklab oliş' : 'Yuklab oliş'}
+        </button>
+      </div>
+
+      {single && single.status !== 'converted' && (
+        <p className="text-xs text-[var(--text-secondary)] text-center">{single.message}</p>
+      )}
+
+
+      {result.isArchive && (
+        <>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-xs font-semibold text-[var(--text-secondary)]">
+              {nf.format(counts.converted)} / {nf.format(result.report.length)} ögirildi
+            </p>
+            {problems > 0 && (
+              <label className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={onlyProblems}
+                  onChange={(e) => setOnlyProblems(e.target.checked)}
+                  className="accent-[var(--accent)]"
+                />
+                Muammolilar ({problems})
+              </label>
+            )}
+          </div>
+
+          <ul className="flex-1 min-h-[120px] max-h-[320px] overflow-y-auto rounded-xl border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
+            {visible.map((item) => {
+              const meta = STATUS_META[item.status];
+              const previewable = item.status !== 'error' && item.status !== 'skipped' && canPreview(item.path);
+              return (
+                <li key={item.path} className="flex items-center gap-1 px-1.5 py-1 text-xs">
+                  <button
+                    type="button"
+                    disabled={!previewable}
+                    onClick={() => onPreview(item.path)}
+                    className="flex items-center gap-2.5 min-w-0 flex-1 text-left px-1.5 py-1 rounded-lg enabled:hover:bg-[var(--bg-surface-raised)] enabled:cursor-pointer disabled:cursor-default"
+                    title={previewable ? 'Özgarişlar bilan körish' : item.message}
+                  >
+                    <meta.Icon className={`w-4 h-4 shrink-0 ${meta.cls}`} aria-label={meta.label} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[var(--text-primary)]">{item.path}</span>
+                      {item.message && <span className="block text-[var(--text-tertiary)] truncate">{item.message}</span>}
+                    </span>
+                    {previewable && <Eye className="w-3.5 h-3.5 text-[var(--text-tertiary)] shrink-0" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDownloadItem(item.path)}
+                    className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--accent)] rounded-md cursor-pointer shrink-0"
+                    title="Faqat şu faylni yuklab oliş"
+                    aria-label={`${item.path} — yuklab oliş`}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </div>
   );
 };

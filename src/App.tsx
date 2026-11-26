@@ -39,14 +39,15 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--bg-app)] text-[var(--text-primary)] font-sans transition-colors duration-200">
+    <div className="min-h-[100dvh] flex flex-col text-[var(--text-primary)] font-sans">
       <Header
         onOpenTable={() => handleOpenHelp('table')}
+        onOpenGuide={() => handleOpenHelp('files')}
         isDark={isDark}
         toggleTheme={toggleTheme}
       />
       
-      <main className="flex-1 flex flex-col justify-center">
+      <main id="main" className="flex-1 flex flex-col">
         <Converter onOpenTable={() => handleOpenHelp('table')} />
       </main>
 

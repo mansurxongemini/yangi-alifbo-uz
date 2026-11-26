@@ -6,23 +6,14 @@ Oʻzbek tilining takomillashtirilgan yangi lotin alifbosi (**Ö ö, Ğ ğ, Ş ş
 
 ## 🌟 Asosiy Imkoniyatlar
 
-- **100% Oflayn va Maxfiy:** Barcha amallar faqat foydalanuvchining oʻz brauzerida bajariladi. Hech qanday maʼlumot serverga yuborilmaydi yoki tashqi tarmoqqa chiqmaydi.
-- **Word (.docx) Hujjatlarini Formatini Saqlab Oʻgirish:**
-  - Hujjat ichidagi barcha jadvallar, ranglar, shriftlar, paragraflar va tasvirlar **100% oʻz holida saqlanadi**.
-  - Faqat matn qatlamlari transliteratsiya qilinib, tayyor `.docx` (Word) hujjati sifatida yuklab beriladi.
-- **ZIP Arxivlarini Toʻliq Qoʻllab-quvvatlash:**
-  - `.zip` arxiv yuklanganda ichidagi barcha axborot fayllari (`.docx`, `.txt`) avtomatik oʻgiriladi.
-  - Yangi arxivni toʻliq `.zip` holida yoki ichidagi har bir faylni alohida-alohida yuklab olish imkoniyati.
-- **Matnli (.txt) Fayllar:** Istalgan matnli faylni tezkor oʻgirib beradi.
-- **Ultra-Minimalistik va Intuitiv Dizayn:**
-  - Matnni asosiy oʻringa qoʻyuvchi, chalgʻitmaydigan sokin interfeys.
-  - Google Translate uslubidagi qulay yoʻnalish almashtirish (⇄).
-  - Klaviaturada boʻlmagan yangi harflar uchun ixcham keycap tugmalari (`Ö`, `Ğ`, `Ş`, `Ç`, `ʻ`, `ʼ`, `-`).
-  - Qorongʻi (Dark) va Yorugʻ (Light) mavzular.
-- **Imlo Qoidalariga Qatʼiy Muvofiqlik:**
-  - Oʻ va Gʻ harflari uchun maxsus teskari modifikator `ʻ` (U+02BB).
-  - Tutuq belgisi uchun `ʼ` (U+02BC).
-  - Istisnolar va avto-aniqlash lugʻati.
+- **Istalgan yoʻnalish:** Kirill, eski lotin va yangi lotin oʻrtasida har qanday yoʻnalishda. Manba va natija bir-biridan mustaqil tanlanadi.
+- **Aralash matnlar:** har bir soʻz oʻz yozuvi boʻyicha alohida aniqlanadi — kirill va lotin aralash hujjatlar, notoʻgʻri tanlangan manba, kirill soʻz ichidagi lotincha homoglif harflar (o, c, p…) ham toʻgʻri oʻgiriladi. URL, e-pochta va xorijiy nomlar (Microsoft Word) oʻzgarmaydi.
+- **Word, Excel, PowerPoint formatini 100% saqlash:** XML qayta yigʻilmaydi — faqat `<w:t>`/`<a:t>`/`<t>` ichidagi harflar almashtiriladi. Jadvallar, ustun kengliklari, shrift, rang, kolontitul, rasm va sahifa sozlamalari bayt-bayt oʻz holida qoladi. Word soʻzni bir nechta "run"ga boʻlgan boʻlsa ham har bir harf oʻz formatlashida qoladi.
+- **Katta ZIP arxivlar:** 300–400+ hujjatli arxivlar fon oqimida (Web Worker) qayta ishlanadi — sahifa qotmaydi, jarayon koʻrsatkichi va bekor qilish tugmasi bor. Buzilgan fayl butun jarayonni toʻxtatmaydi, hisobotda koʻrsatiladi. Windows'da yaratilgan arxivlardagi kirill fayl nomlari (CP866) toʻgʻri oʻqiladi.
+- **Matn fayllari:** `.txt`, `.md`, `.csv` — UTF-8, UTF-16 va Windows-1251 kodirovkalari avtomatik taniladi, qator oxirlari saqlanadi.
+- **Hujjatni koʻrish (nima oʻzgardi):** oʻgirilgan Word hujjati Word sahifasidagidek ochiladi, oʻzgargan soʻzlar sariq rang bilan belgilanadi (ustiga olib borilsa asl soʻz koʻrinadi), «Asl hujjat» bilan solishtirish va oʻzgarishlar boʻylab ↑/↓ yurish mumkin. Arxivdagi har bir fayl ham shunday ochiladi; Excel, PowerPoint va matn fayllari uchun matn koʻrinishi. Matn rejimida ham oʻzgargan soʻzlar belgilanadi.
+- **Markdown:** kiritish maydoni Markdown qabul qiladi (sarlavha, roʻyxat, jadval, kod), natija formatlangan koʻrinishda chiqadi va Word'ga formatlangan holda nusxalanadi. Kod boʻlaklari va havola manzillari oʻgirilmaydi. Kiritish maydoni tepasidagi `</>` tugmasi bilan xom matn (raw) rejimiga oʻtiladi.
+- **100% oflayn va maxfiy:** barcha amallar brauzerda bajariladi. Production build'da qatʼiy Content-Security-Policy (`connect-src 'self'`) sahifaning tashqi serverga maʼlumot yuborishini texnik jihatdan taqiqlaydi.
 
 ---
 
@@ -31,10 +22,11 @@ Oʻzbek tilining takomillashtirilgan yangi lotin alifbosi (**Ö ö, Ğ ğ, Ş ş
 - **Frontend:** React 19, TypeScript
 - **Stillar:** Tailwind CSS v4, CSS Custom Variables
 - **Ikonkalar:** Lucide React
-- **Arxiv va Hujjatlar:** JSZip (Word XML darajasida tahlil qilish va qayta yigʻish)
+- **Arxiv va Hujjatlar:** JSZip + Web Worker (XML'ga jarrohlik usulida tegish)
+- **Markdown:** marked + DOMPurify (XSS'dan himoyalangan)
 - **Shriftlar:** `@fontsource/inter` (toʻliq lokal, tashqi CDN yoʻq)
 - **Yigʻuvchi:** Vite 6
-- **Testlash:** Vitest (19 ta avtomatlashtirilgan unit testlar)
+- **Testlash:** Vitest (transliteratsiya yadrosi, Word XML tuzilishi va 400 faylli ZIP testlari)
 
 ---
 

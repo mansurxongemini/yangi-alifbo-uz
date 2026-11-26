@@ -27,23 +27,23 @@ export const ContactModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md animate-in fade-in duration-150 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md select-none"
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-lg bg-[var(--bg-panel)] rounded-2xl border border-[var(--border-subtle)] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-150">
+      <div className="w-full max-w-lg bg-[var(--bg-panel)] rounded-[20px] border border-[var(--border-subtle)] shadow-[var(--shadow-pop)] overflow-hidden flex flex-col rise">
 
         {/* Header */}
         <div className="h-14 px-5 border-b border-[var(--border-subtle)] bg-[var(--bg-surface-raised)]/40 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#1EA0D2]/15 text-[#1EA0D2] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[var(--accent)]/15 text-[var(--accent)] flex items-center justify-center">
               <MessageCircle className="w-4 h-4" />
             </div>
             <h2 className="text-base font-bold tracking-tight text-[var(--text-primary)]">
-              Aloqa va Takliflar
+              Aloqa va takliflar
             </h2>
           </div>
 
@@ -71,31 +71,31 @@ export const ContactModal: React.FC<Props> = ({ isOpen, onClose }) => {
               href="https://t.me/mansurxonrustamov"
               target="_blank"
               rel="noopener noreferrer"
-              className="sm:col-span-2 p-3 rounded-xl bg-[var(--bg-surface-raised)] hover:bg-[#1EA0D2]/10 border border-[var(--border-subtle)] hover:border-[#1EA0D2]/40 transition-all flex items-center justify-between group cursor-pointer"
+              className="sm:col-span-2 p-3 rounded-xl bg-[var(--bg-surface-raised)] hover:bg-[var(--accent)]/10 border border-[var(--border-subtle)] hover:border-[var(--accent)]/40 transition-all flex items-center justify-between group cursor-pointer"
             >
               <div className="flex items-center gap-2.5">
-                <Send className="w-4 h-4 text-[#1EA0D2]" />
+                <Send className="w-4 h-4 text-[var(--accent)]" />
                 <div>
                   <p className="text-xs font-semibold text-[var(--text-primary)]">Telegram</p>
                   <p className="text-[11px] text-[var(--text-tertiary)]">@mansurxonrustamov</p>
                 </div>
               </div>
-              <ExternalLink className="w-3.5 h-3.5 text-[var(--text-tertiary)] group-hover:text-[#1EA0D2] transition-colors" />
+              <ExternalLink className="w-3.5 h-3.5 text-[var(--text-tertiary)] group-hover:text-[var(--accent)] transition-colors" />
             </a>
 
             {/* Email */}
             <a
               href="mailto:r.mansurxon01@gmail.com"
-              className="sm:col-span-2 p-3 rounded-xl bg-[var(--bg-surface-raised)] hover:bg-[#1EA0D2]/10 border border-[var(--border-subtle)] hover:border-[#1EA0D2]/40 transition-all flex items-center justify-between group cursor-pointer"
+              className="sm:col-span-2 p-3 rounded-xl bg-[var(--bg-surface-raised)] hover:bg-[var(--accent)]/10 border border-[var(--border-subtle)] hover:border-[var(--accent)]/40 transition-all flex items-center justify-between group cursor-pointer"
             >
               <div className="flex items-center gap-2.5">
-                <Mail className="w-4 h-4 text-[#1EA0D2]" />
+                <Mail className="w-4 h-4 text-[var(--accent)]" />
                 <div>
                   <p className="text-xs font-semibold text-[var(--text-primary)]">Elektron poçta</p>
                   <p className="text-[11px] text-[var(--text-tertiary)]">r.mansurxon01@gmail.com</p>
                 </div>
               </div>
-              <ExternalLink className="w-3.5 h-3.5 text-[var(--text-tertiary)] group-hover:text-[#1EA0D2] transition-colors" />
+              <ExternalLink className="w-3.5 h-3.5 text-[var(--text-tertiary)] group-hover:text-[var(--accent)] transition-colors" />
             </a>
 
           </div>

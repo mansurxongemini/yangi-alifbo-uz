@@ -1,10 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
-  <defs>
-    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0A6E99" />
-      <stop offset="100%" stop-color="#1EA0D2" />
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="120" fill="url(#brandGrad)" />
-  <text x="256" y="325" font-family="'Inter', -apple-system, sans-serif" font-size="200" font-weight="700" letter-spacing="-6" fill="#ffffff" text-anchor="middle">Öğ</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="116" fill="#0B6A94"/>
+  <circle cx="256" cy="296" r="102" fill="none" stroke="#fff" stroke-width="50"/>
+  <circle cx="206" cy="130" r="30" fill="#fff"/>
+  <circle cx="306" cy="130" r="30" fill="#fff"/>
 </svg>

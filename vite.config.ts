@@ -1,11 +1,37 @@
-import { defineConfig } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
+/**
+ * Production build uchun qatʼiy Content-Security-Policy.
+ * connect-src 'self' — sahifa hech qanday tashqi serverga maʼlumot yubora olmaydi.
+ * (Dev rejimida HMR uchun qoʻllanilmaydi.)
+ */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' blob: data:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ');
+
+const cspPlugin = (): Plugin => ({
+  name: 'inject-csp',
+  apply: 'build',
+  transformIndexHtml: (html) =>
+    html.replace('<meta charset="UTF-8" />', `<meta charset="UTF-8" />\n  <meta http-equiv="Content-Security-Policy" content="${CSP}" />\n  <meta name="referrer" content="no-referrer" />`),
+});
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  base: './', // Essential for Electron and Capacitor file-relative routing
+  plugins: [react(), tailwindcss(), cspPlugin()],
+  base: './', // Electron va Capacitor uchun nisbiy yoʻllar
+  worker: { format: 'es' },
   server: {
     port: 5173,
   },

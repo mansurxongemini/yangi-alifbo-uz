@@ -109,3 +109,18 @@
 41. [DONE] Brauzerda yangi imlodagi matnlarni vizual koʻrib chiqish, skrinshot olish va GitHub ga push qilish.
    - *Proof:* Brauzerda tekshirildi, `screenshots/new_alphabet_ui_home.png`, `new_alphabet_ui_modal.png` va `new_alphabet_ui_dark.png` saqlandi, GitHub ga push qilindi.
 
+
+## 13-bosqich: Ishonchlilik — yangi yadro, aralash matn, format kafolati, katta arxivlar, Markdown
+42. [DONE] Manba va natija tanlovini mustaqil qilish (biri ikkinchisini avtomatik oʻzgartirmaydi).
+43. [DONE] Transliteratsiya yadrosini qayta yozish (`src/core/engine.ts`): soʻz darajasida yozuvni aniqlash, aralash matn, homoglif harflar, URL/e-pochta himoyasi, belgilar darajasidagi moslik.
+44. [DONE] Office fayllarini XML'ni qayta yigʻmasdan, faqat matn teglari ichida oʻgirish; paragraf boʻyicha (run'larga boʻlingan soʻzlar); Excel va PowerPoint qoʻllab-quvvatlash.
+45. [DONE] ZIP: Web Worker, jarayon koʻrsatkichi, bekor qilish, har bir faylda xatodan himoya, CP866 fayl nomlari, xotirani tejash.
+46. [DONE] Markdown kiritish va natijada formatlangan koʻrinish; raw (</>) tugmasi.
+47. [DONE] Production CSP, hisobot paneli, ishonch bloklari.
+   - *Proof:* 40/40 test; real .docx LibreOffice'da ochildi (format saqlangan); 353 faylli ZIP brauzerda 1.4 s da, asosiy oqim 32 ms dan ortiq bloklanmadi.
+48. [DONE] «Hujjatni koʻrish»: Word hujjati sahifa koʻrinishida (docx-preview), oʻzgargan soʻzlar belgilangan, «Asl hujjat» bilan solishtirish, ↑/↓ navigatsiya; arxivdagi har bir fayl uchun ham.
+
+## 14-bosqich: Premium va professional dizayn
+49. [DONE] Dizayn tizimi: Onest shrifti (lokal, kirill + lotin kengaytmasi), yagona aksent (chuqur moviy), sovuq neytral ranglar, tonlangan soyalar, nozik grain, `.dark` ga ulangan Tailwind `dark:` varianti.
+50. [DONE] Sarlavha qismi, «Matn / Hujjatlar» tablari, segmentlangan yozuv tanlovi (dropdown oʻrniga), fayl tashlash maydoni, yangilangan header/footer va logotip, ishonch boʻlimi.
+   - *Proof:* yorugʻ/qorongʻi, desktop/mobil skrinshotlar; 41/41 test; build.
