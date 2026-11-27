@@ -1,7 +1,7 @@
 {
   "name": "yangi-alifbo-uz",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "O'zbek tili yangi takomillashtirilgan lotin alifbosi (Ö, Ğ, Ş, Ç) konvertori",
   "type": "module",
   "main": "electron/main.cjs",
@@ -11,15 +11,22 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "electron": "electron electron/main.cjs",
-    "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron electron/main.cjs\"",
-    "cap:sync": "cap sync",
+    "electron": "electron .",
+    "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "cap:android": "cap open android",
-    "cap:ios": "cap open ios"
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:win": "npm run build && electron-builder --win && ./build/finish-win.sh",
+    "dist:desktop": "npm run build && electron-builder --linux --win && ./build/finish-win.sh",
+    "android:sync": "npm run build && cap sync android",
+    "android:apk": "npm run android:sync && cd android && JAVA_HOME=${JAVA_HOME_21:-/usr/lib/jvm/java-21-openjdk-amd64} ./gradlew :app:assembleRelease && cp app/build/outputs/apk/release/app-release.apk ../release/ozbek-alifbosi-$npm_package_version-android.apk",
+    "release:manifest": "node build/release-manifest.mjs"
   },
   "dependencies": {
+    "@capacitor/filesystem": "^7.1.9",
+    "@capacitor/share": "^7.0.4",
     "@fontsource-variable/onest": "^5.3.1",
     "@types/jszip": "^3.4.0",
+    "7z-wasm": "^1.2.0",
     "clsx": "^2.1.1",
     "docx-preview": "^0.3.7",
     "dompurify": "^3.5.0",
@@ -32,8 +39,9 @@
     "tailwind-merge": "^3.0.2"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.0.1",
-    "@capacitor/core": "^7.0.1",
+    "@capacitor/android": "^7.6.11",
+    "@capacitor/cli": "^7.6.11",
+    "@capacitor/core": "^7.6.9",
     "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^22.13.0",
     "@types/react": "^19.0.8",
@@ -41,10 +49,64 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "electron": "^34.0.2",
+    "electron-builder": "^26.18.0",
+    "resedit": "^3.1.1",
     "tailwindcss": "^4.0.0",
     "typescript": "~5.7.2",
     "vite": "^6.1.0",
     "vitest": "^3.0.5",
     "wait-on": "^8.0.2"
-  }
+  },
+  "author": "Rustamov Mansurxon",
+  "homepage": "https://github.com/mansurxongemini/yangi-alifbo-uz",
+  "build": {
+    "appId": "uz.alifbo.converter",
+    "productName": "Ozbek Alifbosi",
+    "executableName": "ozbek-alifbosi",
+    "copyright": "© 2026 Rustamov Mansurxon",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "build/icon.png",
+      "package.json",
+      "!**/node_modules/**/*"
+    ],
+    "asar": true,
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Office",
+      "icon": "build/icons",
+      "maintainer": "Rustamov Mansurxon",
+      "synopsis": "Kirill va eski lotindan yangi alifboga oflayn konvertor",
+      "desktop": {
+        "entry": {
+          "Name": "Özbek Alifbosi",
+          "Comment": "Kirill va eski lotindan yangi alifboga",
+          "Keywords": "alifbo;kirill;lotin;docx;"
+        }
+      },
+      "syncDesktopName": true
+    },
+    "win": {
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "artifactName": "ozbek-alifbosi-${version}-${os}-${arch}.${ext}"
+  },
+  "desktopName": "ozbek-alifbosi.desktop"
 }

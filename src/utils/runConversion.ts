@@ -1,4 +1,4 @@
-import { convertFile, ConvertResult, ProgressFn, CancelledError } from './fileConverter';
+import { convertInputs, ConvertResult, ProgressFn, CancelledError, InputItem } from './fileConverter';
 import type { ConvertOptions } from '../core/engine';
 import type { WorkerResponse } from '../workers/convert.worker';
 
@@ -11,7 +11,7 @@ export interface ConversionJob {
  * Faylni fon oqimida (Web Worker) oʻgiradi — sahifa katta arxivlarda ham qotib qolmaydi.
  * Worker ishga tushmasa (masalan, eski brauzer), asosiy oqimda bajariladi.
  */
-export const startConversion = (file: File, opts: ConvertOptions, onProgress: ProgressFn): ConversionJob => {
+export const startConversion = (items: InputItem[], opts: ConvertOptions, onProgress: ProgressFn): ConversionJob => {
   let worker: Worker | null = null;
   try {
     worker = new Worker(new URL('../workers/convert.worker.ts', import.meta.url), { type: 'module' });
@@ -40,9 +40,9 @@ export const startConversion = (file: File, opts: ConvertOptions, onProgress: Pr
         ev.preventDefault();
         w.terminate();
         // Worker yuklanmadi — asosiy oqimda davom etamiz
-        convertFile(file, file.name, opts, onProgress, signal).then(resolve, reject);
+        convertInputs(items, opts, onProgress, signal).then(resolve, reject);
       };
-      w.postMessage({ file, name: file.name, opts });
+      w.postMessage({ items, opts });
     });
     return {
       promise,
@@ -56,7 +56,7 @@ export const startConversion = (file: File, opts: ConvertOptions, onProgress: Pr
 
   const signal = { aborted: false };
   return {
-    promise: convertFile(file, file.name, opts, onProgress, signal),
+    promise: convertInputs(items, opts, onProgress, signal),
     cancel: () => {
       signal.aborted = true;
     },

@@ -124,3 +124,11 @@
 49. [DONE] Dizayn tizimi: Onest shrifti (lokal, kirill + lotin kengaytmasi), yagona aksent (chuqur moviy), sovuq neytral ranglar, tonlangan soyalar, nozik grain, `.dark` ga ulangan Tailwind `dark:` varianti.
 50. [DONE] Sarlavha qismi, «Matn / Hujjatlar» tablari, segmentlangan yozuv tanlovi (dropdown oʻrniga), fayl tashlash maydoni, yangilangan header/footer va logotip, ishonch boʻlimi.
    - *Proof:* yorugʻ/qorongʻi, desktop/mobil skrinshotlar; 41/41 test; build.
+
+## 15-bosqich: Qo'shimcha fayl formatlari
+51. [DONE] ODF (.odt/.ods/.odp), RTF, HTML — format saqlangan holda; RAR/7z/TAR/GZ arxivlar (7-Zip WASM), natija ZIP.
+   - *Proof:* 51/51 test; LibreOffice yaratgan .odt/.rtf/.html/.ods o'girilib, LibreOffice'da ochildi (PDF solishtiruvi: tuzilish o'zgarmagan); production build (CSP) da 7z arxiv brauzerda 5/5 o'girildi, konsol toza.
+52. [DONE] Istalgancha fayl yuklash: ko'p tanlash, «Fayl qo'shish», «Papka qo'shish», papkani sudrab tashlash (ichma-ich), natija bitta ZIP; arxivlar ichiga kiriladi, buzilgan arxiv boshqalarini to'xtatmaydi.
+   - *Proof:* 54/54 test; production build'da 6 ta tanlov (fayllar + 7z + papka) → 10/10 o'girildi, ichki hujjatlar ko'rish oynasida ochildi, konsol toza.
+53. [DONE] Oflayn dasturlar: Linux (AppImage, deb), Windows (portable ZIP, ikonka resedit bilan), Android (imzolangan APK, INTERNET ruxsatisiz).
+   - *Proof:* AppImage ishga tushirildi — matn, 7z va Word o'girildi, tarmoq bloklangan; APK apksigner bilan tekshirildi; 54/54 test.

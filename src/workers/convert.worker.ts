@@ -1,25 +1,24 @@
 /// <reference lib="webworker" />
-import { convertFile, CancelledError, ProgressInfo } from '../utils/fileConverter';
+import { convertInputs, CancelledError, ProgressInfo, InputItem, ConvertResult } from '../utils/fileConverter';
 import type { ConvertOptions } from '../core/engine';
 
 export interface WorkerRequest {
-  file: Blob;
-  name: string;
+  items: InputItem[];
   opts: ConvertOptions;
 }
 
 export type WorkerResponse =
   | { type: 'progress'; progress: ProgressInfo }
-  | { type: 'done'; result: Awaited<ReturnType<typeof convertFile>> }
+  | { type: 'done'; result: ConvertResult }
   | { type: 'error'; message: string; cancelled?: boolean };
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 
 let lastPost = 0;
 ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
-  const { file, name, opts } = e.data;
+  const { items, opts } = e.data;
   try {
-    const result = await convertFile(file, name, opts, (progress) => {
+    const result = await convertInputs(items, opts, (progress) => {
       const now = Date.now();
       // Juda tez-tez xabar yubormaslik (UI ni band qilmaslik uchun)
       if (now - lastPost > 60 || progress.phase !== 'converting' || progress.done === progress.total) {

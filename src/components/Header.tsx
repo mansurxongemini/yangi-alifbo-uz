@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpenText, Moon, Sun } from 'lucide-react';
+import { BookOpenText, Download, Moon, Sun } from 'lucide-react';
 import { LogoMark } from './Logo';
 
 interface Props {
@@ -7,12 +7,15 @@ interface Props {
   onOpenGuide: () => void;
   isDark: boolean;
   toggleTheme: () => void;
+  /** Dasturlar sahifasi havolasi (ilovaning o'zida yo'q) */
+  downloadsHref?: string;
+  onDownloadsPage?: boolean;
 }
 
 const navBtn =
   'press h-9 px-3 rounded-lg text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)] cursor-pointer';
 
-export const Header: React.FC<Props> = ({ onOpenTable, onOpenGuide, isDark, toggleTheme }) => (
+export const Header: React.FC<Props> = ({ onOpenTable, onOpenGuide, isDark, toggleTheme, downloadsHref, onDownloadsPage }) => (
   <header className="sticky top-0 z-40 bg-[var(--bg-app)]/85 backdrop-blur-md">
     <a
       href="#main"
@@ -33,6 +36,16 @@ export const Header: React.FC<Props> = ({ onOpenTable, onOpenGuide, isDark, togg
         <button type="button" onClick={onOpenGuide} className={`${navBtn} hidden sm:inline-flex items-center`}>
           Qöllanma
         </button>
+        {downloadsHref && (
+          <a
+            href={downloadsHref}
+            aria-current={onDownloadsPage ? 'page' : undefined}
+            className={`${navBtn} inline-flex items-center gap-1.5 ${onDownloadsPage ? 'text-[var(--text-primary)] bg-[var(--bg-panel)]' : ''}`}
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Yuklab oliş</span>
+          </a>
+        )}
         <button
           type="button"
           onClick={onOpenTable}

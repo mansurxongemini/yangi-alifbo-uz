@@ -5,8 +5,6 @@ import {
   FileText,
   ShieldCheck,
   Search,
-  Sparkles,
-  Info,
 } from 'lucide-react';
 import { ALPHABET_DATA } from '../core/alphabetData';
 
@@ -212,15 +210,6 @@ export const HelpGuideModal: React.FC<Props> = ({
           {/* TAB 2: IMLO QOIDALARI */}
           {activeTab === 'rules' && (
             <div className="space-y-5 text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
-              <div className="p-4 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/25 text-[var(--text-primary)] flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-[var(--accent)] shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="font-bold text-sm">Yangi lotin alifbosi qoidalari</h4>
-                  <p className="text-xs mt-1 text-[var(--text-secondary)]">
-                    Takomillaştirilgan alifboda qöşaloq va noqulay apostrofli 4 ta harf xalqaro standartdagi diakritik harflarga almaştirildi.
-                  </p>
-                </div>
-              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-1">
@@ -256,16 +245,6 @@ export const HelpGuideModal: React.FC<Props> = ({
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-[var(--bg-surface-raised)] border border-[var(--border-subtle)] space-y-2">
-                <h5 className="font-bold text-[var(--text-primary)] flex items-center gap-1.5">
-                  <Info className="w-4 h-4 text-[var(--accent)]" />
-                  <span>Tutuq belgisi (ʼ) saqlanib qoldi:</span>
-                </h5>
-                <p className="text-xs">
-                  Tutuq belgisi (<span className="font-semibold text-[var(--text-primary)]">ʼ</span> - U+02BC) mustaqil belgi sifatida öz örnida qoladi.
-                  Misollar: <span className="font-semibold text-[var(--text-primary)]">aʼlo, maʼno, taʼlim, Isʼhoq</span>.
-                </p>
-              </div>
             </div>
           )}
 
@@ -286,7 +265,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                   <li>sarlavha, kolontitul, izoh, raqamlangan röyxat, rasmlar va sahifa sozlamalari.</li>
                 </ul>
                 <p className="text-xs">
-                  Word baʼzan bitta sözni bir neçta bölakka ajratib saqlaydi (masalan, «O» qalin, «ʻzbekiston» oddiy). Ilova bunday sözlarni ham töğri ögiradi va har bir harf öz formatlaşida qoladi. Excel (.xlsx) va PowerPoint (.pptx) fayllari ham xuddi şunday işlanadi.
+                  Word baʼzan bitta sözni bir neçta bölakka ajratib saqlaydi (masalan, «O» qalin, «ʻzbekiston» oddiy). Ilova bunday sözlarni ham töğri ögiradi va har bir harf öz formatlaşida qoladi. Excel (.xlsx), PowerPoint (.pptx), LibreOffice (.odt, .ods, .odp), RTF va HTML fayllari ham xuddi şunday — faqat harflar almaşadi.
                 </p>
               </div>
 
@@ -295,6 +274,9 @@ export const HelpGuideModal: React.FC<Props> = ({
                   <FileText className="w-4 h-4 text-[var(--accent)]" />
                   <span>Aralaş yozuvdagi hujjatlar</span>
                 </h4>
+                <p className="text-xs">
+                  Eski <code>.doc</code>, <code>.xls</code>, <code>.ppt</code> va PDF formatidagi fayllarni formatni buzmasdan ögiriş imkonsiz — ularni Word yoki Excelʼda yangi formatda (.docx, .xlsx) saqlab, qayta yuklang.
+                </p>
                 <p className="text-xs">
                   Hujjatning bir qismi kirillda, bir qismi eski lotinda bölsa ham, har bir söz öz yozuvi böyiça aniqlanib, tanlangan natija yozuviga ögiriladi. Manba notöğri tanlangan bölsa ham natija töğri çiqadi. Kirill söz içiga adaşib yozilgan lotincha «o», «c» kabi harflar ham taniladi. Veb-manzil va e-poçtalar özgartirilmaydi.
                 </p>
@@ -306,7 +288,7 @@ export const HelpGuideModal: React.FC<Props> = ({
                   <span>ZIP arxivlari bilan işlaş</span>
                 </h4>
                 <p className="text-xs">
-                  Yuzlab hujjatni bitta <strong>.zip</strong> arxivga joylab yuklang. Papkalar tuzilişi va fayl nomlari saqlanadi. Arxivdagi biror fayl şikastlangan bölsa, jarayon töxtamaydi: u fayl asl holida qoldiriladi va hisobotda körsatiladi. Har bir faylni alohida ham yuklab oliş mumkin.
+                  Yuzlab hujjatni bitta <strong>.zip</strong>, <strong>.rar</strong> yoki <strong>.7z</strong> arxivga joylab yuklang (natija ZIP bölib qaytadi). Bir yöla istalgança fayl tanlaş yoki butun papkani sudrab taşlaş ham mumkin — papka tuzilişi saqlanadi. Papkalar tuzilişi va fayl nomlari saqlanadi. Arxivdagi biror fayl şikastlangan bölsa, jarayon töxtamaydi: u fayl asl holida qoldiriladi va hisobotda körsatiladi. Har bir faylni alohida ham yuklab oliş mumkin.
                 </p>
               </div>
 

@@ -205,6 +205,9 @@
 }
 @media (max-width: 640px) { .preview-page { padding: 24px 18px; } }
 .docx-host .docx-wrapper { background: transparent !important; padding: 24px 12px !important; }
+/* Word sahifasida: marker uslubi — to'q fonli kataklarda ham matn o'qiladi */
+.docx-host .change-mark { background: linear-gradient(transparent 58%, rgba(255, 204, 0, .6) 58%); box-shadow: none; border-radius: 0; }
+.docx-host .change-mark-active { background: linear-gradient(transparent 50%, rgba(249, 115, 22, .7) 50%) !important; box-shadow: none !important; }
 .docx-host .docx-wrapper > section.docx { box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 8px 24px rgba(0,0,0,.08) !important; margin-bottom: 24px !important; }
 @media (max-width: 860px) {
   .docx-host .docx-wrapper > section.docx { width: auto !important; min-height: auto !important; padding: 24px 18px !important; }

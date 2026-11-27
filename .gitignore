@@ -37,3 +37,7 @@ Thumbs.db
 .taste-skill/
 coverage/
 *.tsbuildinfo
+
+# Android imzo kaliti — hech qachon commit qilinmasin
+android/keystore/
+android/keystore.properties

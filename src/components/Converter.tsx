@@ -13,6 +13,8 @@ import {
   FileCheck2,
   Eye,
   FileText,
+  FolderOpen,
+  Plus,
   Highlighter,
   Info,
   Files,
@@ -37,7 +39,9 @@ import {
   ConvertResult,
   buildPreview,
   extractFromZip,
-  readZipEntry,
+  readArchiveEntry,
+  readInputEntry,
+  InputItem,
   formatFileSize,
   kindOf,
   MAX_FILE_SIZE,
@@ -47,6 +51,7 @@ import {
 import { startConversion, ConversionJob } from '../utils/runConversion';
 import { MarkdownView, renderMarkdown } from './MarkdownView';
 import { DocumentPreview } from './DocumentPreview';
+import { saveBlob, supportsFolderPick } from '../utils/platform';
 import { markersToHtml, renderMarked } from '../utils/marks';
 
 interface ConverterProps {
@@ -87,15 +92,37 @@ const store = {
   },
 };
 
+/** Faylni saqlash (brauzer/desktop — yuklab olish, Android — xotiraga + ulashish). */
+const toast = (message: string) => window.dispatchEvent(new CustomEvent('app-toast', { detail: message }));
 const downloadBlob = (blob: Blob, filename: string) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  saveBlob(blob, filename).then(
+    (r) => r.message && toast(r.message),
+    (e) => toast(`Saqlab bölmadi: ${e instanceof Error ? e.message : String(e)}`)
+  );
+};
+
+/** Ekran pastidagi qisqa xabar (masalan, telefonda "Saqlandi: Documents/..."). */
+const Toast: React.FC = () => {
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const on = (e: Event) => {
+      setMsg((e as CustomEvent<string>).detail);
+      clearTimeout(timer);
+      timer = setTimeout(() => setMsg(null), 4000);
+    };
+    window.addEventListener('app-toast', on);
+    return () => {
+      window.removeEventListener('app-toast', on);
+      clearTimeout(timer);
+    };
+  }, []);
+  if (!msg) return null;
+  return (
+    <div role="status" className="rise fixed left-1/2 -translate-x-1/2 bottom-6 z-[60] max-w-[92vw] px-4 py-2.5 rounded-xl bg-[#0E1621] text-white text-sm shadow-[var(--shadow-pop)]">
+      {msg}
+    </div>
+  );
 };
 
 // Raqamlarni boʻsh joy bilan guruhlash: 12 954
@@ -218,7 +245,11 @@ export const Converter: React.FC<ConverterProps> = () => {
   const [showChanges, setShowChanges] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<InputItem[]>([]);
+  const file = files.length ? files[0] : null;
+  const single = files.length === 1 && !files[0].path.includes('/');
+  const appendRef = useRef(false);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<'text' | 'files'>('text');
   const [progress, setProgress] = useState<ProgressInfo | null>(null);
   const [result, setResult] = useState<ConvertResult | null>(null);
@@ -331,25 +362,44 @@ export const Converter: React.FC<ConverterProps> = () => {
     setPreviewPath(null);
   };
 
-  const handleFileSelect = (f: File) => {
+  const handleFilesSelect = (list: InputItem[], append = false) => {
+    if (!list.length) return;
+    // Qo'shishda bir xil faylni ikki marta olmaslik
+    const seen = new Set(append ? files.map((f) => `${f.path}|${f.blob.size}`) : []);
+    const next = [...(append ? files : []), ...list.filter((f) => !seen.has(`${f.path}|${f.blob.size}`))];
     resetFileState();
     setMode('files');
-    if (f.size > MAX_FILE_SIZE) {
-      setFile(f);
-      setFileError(`Fayl juda katta (${formatFileSize(f.size)}). Eng köpi bilan ${formatFileSize(MAX_FILE_SIZE)}.`);
+    setFiles(next);
+    const total = next.reduce((a, f) => a + f.blob.size, 0);
+    if (total > MAX_FILE_SIZE) {
+      setFileError(`Fayllar jami juda katta (${formatFileSize(total)}). Eng köpi bilan ${formatFileSize(MAX_FILE_SIZE)}.`);
       return;
     }
-    setFile(f);
-    if (kindOf(f.name) === 'unsupported') {
-      setFileError('Bu format qöllab-quvvatlanmaydi. Word (.docx), Excel (.xlsx), PowerPoint (.pptx), matn (.txt, .md) yoki ZIP arxiv yuklang.');
+    if (next.length === 1 && kindOf(next[0].path) === 'unsupported') {
+      setFileError('Bu format qöllab-quvvatlanmaydi. Word, Excel, PowerPoint, LibreOffice (.odt), RTF, HTML, matn fayli yoki ZIP/RAR/7z arxiv yuklang.');
     }
   };
 
+  const pickFiles = (append: boolean) => {
+    appendRef.current = append;
+    fileInputRef.current?.click();
+  };
+  const pickFolder = (append: boolean) => {
+    appendRef.current = append;
+    folderInputRef.current?.click();
+  };
+
+  const removeFile = (idx: number) => {
+    const next = files.filter((_, i) => i !== idx);
+    resetFileState();
+    setFiles(next);
+  };
+
   const handleConvertFile = useCallback(async () => {
-    if (!file) return;
+    if (!files.length) return;
     resetFileState();
     setProgress({ phase: 'reading', done: 0, total: 0 });
-    const job = startConversion(file, { from: source, to: target }, (p) => setProgress(p));
+    const job = startConversion(files, { from: source, to: target }, (p) => setProgress(p));
     jobRef.current = job;
     try {
       const res = await job.promise;
@@ -369,7 +419,7 @@ export const Converter: React.FC<ConverterProps> = () => {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, source, target]);
+  }, [files, source, target]);
 
   const handleCancel = () => {
     jobRef.current?.cancel();
@@ -379,7 +429,7 @@ export const Converter: React.FC<ConverterProps> = () => {
 
   const handleClearFile = () => {
     resetFileState();
-    setFile(null);
+    setFiles([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -394,11 +444,13 @@ export const Converter: React.FC<ConverterProps> = () => {
   };
 
   const loadPreview = useCallback(async () => {
-    if (!file || previewPath === null) throw new Error('Fayl yöq');
+    if (!files.length || previewPath === null) throw new Error('Fayl yöq');
     const opts = { from: source, to: target };
-    if (previewPath === '') return buildPreview(new Uint8Array(await file.arrayBuffer()), file.name, opts);
-    return buildPreview(await readZipEntry(file, previewPath), previewPath, opts);
-  }, [file, previewPath, source, target]);
+    const one = files[0];
+    if (previewPath === '') return buildPreview(new Uint8Array(await one.blob.arrayBuffer()), one.path, opts);
+    if (single) return buildPreview(await readArchiveEntry(one.blob, one.path, previewPath), previewPath, opts);
+    return buildPreview(await readInputEntry(files, previewPath), previewPath, opts);
+  }, [files, single, previewPath, source, target]);
 
   // Drag & drop (ichki elementlar ustida miltillamasligi uchun hisoblagich)
   const onDragEnter = (e: React.DragEvent) => {
@@ -416,8 +468,8 @@ export const Converter: React.FC<ConverterProps> = () => {
     e.preventDefault();
     dragDepth.current = 0;
     setIsDragOver(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f) handleFileSelect(f);
+    // Papkalar ham: ichidagi barcha fayllar nisbiy yo'li bilan olinadi
+    collectDropped(e.dataTransfer).then((list) => handleFilesSelect(list, files.length > 0 && !result));
   };
 
   // ---------------- Hisobot ----------------
@@ -461,21 +513,35 @@ export const Converter: React.FC<ConverterProps> = () => {
 
   // =========================================================================
 
-  const formatChips = ['.docx', '.xlsx', '.pptx', '.txt', '.md', '.zip'];
+  const formatChips = ['.docx', '.xlsx', '.pptx', '.odt', '.rtf', '.html', '.txt', '.zip', '.rar', '.7z'];
 
   return (
     <div className="w-full max-w-[1200px] mx-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-16">
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         accept={ACCEPT_ATTR}
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) handleFileSelect(f);
+          const list = Array.from(e.target.files ?? []).map((f) => ({ blob: f, path: f.name }));
+          handleFilesSelect(list, appendRef.current);
           e.target.value = '';
         }}
         className="hidden"
         id="file-upload-input"
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        // @ts-expect-error — papka tanlash (barcha zamonaviy brauzerlarda bor)
+        webkitdirectory=""
+        onChange={(e) => {
+          const list = Array.from(e.target.files ?? []).map((f) => ({ blob: f, path: f.webkitRelativePath || f.name }));
+          handleFilesSelect(list, appendRef.current);
+          e.target.value = '';
+        }}
+        className="hidden"
       />
 
       {/* ============ Rejim tablari (yuqorida, tabletka) ============ */}
@@ -499,7 +565,7 @@ export const Converter: React.FC<ConverterProps> = () => {
             >
               <Icon className="w-[18px] h-[18px]" />
               {label}
-              {key === 'files' && file && <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" aria-label="fayl yuklangan" />}
+              {key === 'files' && files.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" aria-label="fayl yuklangan" />}
             </button>
           ))}
         </div>
@@ -567,22 +633,42 @@ export const Converter: React.FC<ConverterProps> = () => {
               file ? (
                 <div className="flex-1 flex items-center justify-center p-5 sm:p-8">
                   <div className="w-full max-w-md space-y-4">
-                    <div className="flex items-start gap-3 p-4 rounded-2xl bg-[var(--bg-surface-raised)]">
-                      <div className="w-11 h-11 rounded-xl bg-[var(--bg-panel)] text-[var(--accent)] shadow-[var(--shadow-sm)] flex items-center justify-center shrink-0">
-                        {kindOf(file.name) === 'zip' ? <FileArchive className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+                    {single ? (
+                      <div className="flex items-start gap-3 p-4 rounded-2xl bg-[var(--bg-surface-raised)]">
+                        <div className="w-11 h-11 rounded-xl bg-[var(--bg-panel)] text-[var(--accent)] shadow-[var(--shadow-sm)] flex items-center justify-center shrink-0">
+                          {kindOf(file!.path) === 'zip' || kindOf(file!.path) === 'archive' ? <FileArchive className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-[var(--text-primary)] break-all line-clamp-2" title={file!.path}>
+                            {file!.path}
+                          </p>
+                          <p className="text-xs text-[var(--text-secondary)] mt-0.5 tabular-nums">
+                            {file!.path.split('.').pop()?.toUpperCase()} · {formatFileSize(file!.blob.size)}
+                          </p>
+                        </div>
+                        <IconButton label="Faylni olib taşlaş" onClick={handleClearFile} disabled={isConverting}>
+                          <X className="w-4 h-4" />
+                        </IconButton>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-[var(--text-primary)] break-all line-clamp-2" title={file.name}>
-                          {file.name}
-                        </p>
-                        <p className="text-xs text-[var(--text-secondary)] mt-0.5 tabular-nums">
-                          {file.name.split('.').pop()?.toUpperCase()} · {formatFileSize(file.size)}
-                        </p>
+                    ) : (
+                      <FileList files={files} disabled={isConverting} onRemove={removeFile} onClear={handleClearFile} />
+                    )}
+
+                    {!isConverting && !result && (
+                      <div className="flex items-center justify-center gap-4 text-sm">
+                        <button type="button" onClick={() => pickFiles(true)} className="inline-flex items-center gap-1.5 font-medium text-[var(--accent)] hover:underline underline-offset-4 cursor-pointer">
+                          <Plus className="w-4 h-4" /> Fayl qöşiş
+                        </button>
+                        {supportsFolderPick() && (
+                          <>
+                            <span className="w-px h-4 bg-[var(--border-subtle)]" />
+                            <button type="button" onClick={() => pickFolder(true)} className="inline-flex items-center gap-1.5 font-medium text-[var(--accent)] hover:underline underline-offset-4 cursor-pointer">
+                              <FolderOpen className="w-4 h-4" /> Papka qöşiş
+                            </button>
+                          </>
+                        )}
                       </div>
-                      <IconButton label="Faylni olib taşlaş" onClick={handleClearFile}>
-                        <X className="w-4 h-4" />
-                      </IconButton>
-                    </div>
+                    )}
 
                     {fileError && (
                       <div role="alert" className="flex items-start gap-2 text-sm text-[var(--danger)] bg-[var(--danger)]/8 p-3 rounded-xl border border-[var(--danger)]/20">
@@ -594,15 +680,15 @@ export const Converter: React.FC<ConverterProps> = () => {
                     {isConverting && progress ? (
                       <ProgressPanel progress={progress} onCancel={handleCancel} />
                     ) : (
-                      kindOf(file.name) !== 'unsupported' &&
-                      file.size <= MAX_FILE_SIZE &&
+                      !(single && kindOf(file!.path) === 'unsupported') &&
+                      !fileError?.startsWith('Fayllar jami') &&
                       (!result || resultStale) && (
                         <button
                           type="button"
                           onClick={handleConvertFile}
                           className="press w-full h-11 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text-on)] text-sm font-semibold flex items-center justify-center gap-2 shadow-[var(--shadow-sm)] cursor-pointer"
                         >
-                          {resultStale ? 'Qayta ögiriş' : 'Ögiriş'}
+                          {resultStale ? 'Qayta ögiriş' : files.length > 1 ? `${nf.format(files.length)} ta faylni ögiriş` : 'Ögiriş'}
                           <ArrowRight className="w-4 h-4" />
                         </button>
                       )
@@ -611,25 +697,42 @@ export const Converter: React.FC<ConverterProps> = () => {
                     {result && !isConverting && (
                       <button
                         type="button"
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => pickFiles(false)}
                         className="w-full text-sm font-medium text-[var(--accent)] hover:underline underline-offset-4 cursor-pointer"
                       >
-                        Boşqa fayl tanlaş
+                        Boşqa fayllar tanlaş
                       </button>
                     )}
                   </div>
                 </div>
               ) : (
                 <div className="flex-1 p-4 sm:p-5 flex">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => pickFiles(false)}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), pickFiles(false))}
                     className="group flex-1 rounded-2xl border-[1.5px] border-dashed border-[var(--border-hover)] hover:border-[var(--accent)] hover:bg-[var(--accent-subtle)]/50 transition-colors flex flex-col items-center justify-center text-center px-6 py-10 cursor-pointer"
                   >
                     <span className="w-14 h-14 rounded-2xl bg-[var(--bg-panel)] shadow-[var(--shadow-card)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--accent)] mb-5 transition-transform group-hover:-translate-y-0.5">
                       <Upload className="w-6 h-6" />
                     </span>
-                    <span className="text-base font-medium text-[var(--text-primary)]">Fayl tanlang yoki taşlang</span>
+                    <span className="text-base font-medium text-[var(--text-primary)]">Fayllarni tanlang yoki taşlang</span>
+                    <span className="mt-1 text-sm text-[var(--text-secondary)]">
+                      {supportsFolderPick() ? 'Istalgança fayl yoki ' : 'Bir yöla istalgança fayl'}
+                      {supportsFolderPick() && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          pickFolder(false);
+                        }}
+                        className="font-medium text-[var(--accent)] underline underline-offset-4 cursor-pointer"
+                      >
+                        butun papka
+                      </button>
+                      )}
+                    </span>
                     <span className="mt-4 flex flex-wrap justify-center gap-1.5">
                       {formatChips.map((c) => (
                         <span key={c} className="px-2 py-0.5 rounded-md bg-[var(--bg-surface-raised)] text-[11px] font-medium text-[var(--text-secondary)] tabular-nums">
@@ -637,7 +740,7 @@ export const Converter: React.FC<ConverterProps> = () => {
                         </span>
                       ))}
                     </span>
-                  </button>
+                  </div>
                 </div>
               )
             ) : (
@@ -754,6 +857,8 @@ export const Converter: React.FC<ConverterProps> = () => {
         )}
       </div>
 
+      <Toast />
+
       {previewPath !== null && file && result && (
         <DocumentPreview
           title={previewPath === '' ? result.filename : previewPath}
@@ -768,6 +873,80 @@ export const Converter: React.FC<ConverterProps> = () => {
 };
 
 // ---------------------------------------------------------------------------
+
+/** Sudrab tashlangan fayl va papkalarni (ichma-ich) nisbiy yo'li bilan yig'adi. */
+const collectDropped = async (dt: DataTransfer): Promise<InputItem[]> => {
+  // webkitGetAsEntry ni drop hodisasi ichida, sinxron chaqirish shart
+  const roots = Array.from(dt.items ?? [])
+    .filter((i) => i.kind === 'file')
+    .map((i) => i.webkitGetAsEntry())
+    .filter((e): e is FileSystemEntry => !!e);
+  if (!roots.length) return Array.from(dt.files).map((f) => ({ blob: f, path: f.name }));
+  const out: InputItem[] = [];
+  const walk = async (e: FileSystemEntry): Promise<void> => {
+    if (e.isFile) {
+      const f = await new Promise<File>((res, rej) => (e as FileSystemFileEntry).file(res, rej));
+      out.push({ blob: f, path: e.fullPath.replace(/^\//, '') || f.name });
+    } else if (e.isDirectory) {
+      const reader = (e as FileSystemDirectoryEntry).createReader();
+      // readEntries bir martada hammasini bermaydi — bo'sh ro'yxatgacha o'qiymiz
+      for (;;) {
+        const batch = await new Promise<FileSystemEntry[]>((res, rej) => reader.readEntries(res, rej));
+        if (!batch.length) break;
+        for (const c of batch) await walk(c);
+      }
+    }
+  };
+  for (const r of roots) await walk(r);
+  return out;
+};
+
+const FileList: React.FC<{ files: InputItem[]; disabled: boolean; onRemove: (i: number) => void; onClear: () => void }> = ({ files, disabled, onRemove, onClear }) => {
+  const total = files.reduce((a, f) => a + f.blob.size, 0);
+  const shown = files.slice(0, 300);
+  return (
+    <div className="rounded-2xl bg-[var(--bg-surface-raised)] overflow-hidden">
+      <div className="flex items-center gap-3 p-4">
+        <div className="w-11 h-11 rounded-xl bg-[var(--bg-panel)] text-[var(--accent)] shadow-[var(--shadow-sm)] flex items-center justify-center shrink-0">
+          <Files className="w-5 h-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-[var(--text-primary)]">{nf.format(files.length)} ta fayl</p>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5 tabular-nums">Jami {formatFileSize(total)}</p>
+        </div>
+        <IconButton label="Hammasini olib taşlaş" onClick={onClear} disabled={disabled}>
+          <X className="w-4 h-4" />
+        </IconButton>
+      </div>
+      <ul className="max-h-[200px] overflow-y-auto border-t border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)]">
+        {shown.map((f, i) => {
+          const k = kindOf(f.path);
+          return (
+            <li key={`${f.path}|${i}`} className="flex items-center gap-2.5 px-4 py-1.5 text-xs">
+              {k === 'zip' || k === 'archive' ? <FileArchive className="w-3.5 h-3.5 text-[var(--text-tertiary)] shrink-0" /> : <FileText className="w-3.5 h-3.5 text-[var(--text-tertiary)] shrink-0" />}
+              <span className={`truncate flex-1 ${k === 'unsupported' ? 'text-[var(--text-tertiary)]' : 'text-[var(--text-primary)]'}`} title={f.path}>
+                {f.path}
+              </span>
+              <span className="tabular-nums text-[var(--text-tertiary)] shrink-0">{formatFileSize(f.blob.size)}</span>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onRemove(i)}
+                className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--danger)] cursor-pointer disabled:opacity-30"
+                aria-label={`${f.path} — olib taşlaş`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </li>
+          );
+        })}
+        {files.length > shown.length && (
+          <li className="px-4 py-2 text-xs text-[var(--text-tertiary)]">va yana {nf.format(files.length - shown.length)} ta fayl…</li>
+        )}
+      </ul>
+    </div>
+  );
+};
 
 const ProgressPanel: React.FC<{ progress: ProgressInfo; onCancel: () => void }> = ({ progress, onCancel }) => {
   const pct =
@@ -817,7 +996,7 @@ const ProgressPanel: React.FC<{ progress: ProgressInfo; onCancel: () => void }> 
   );
 };
 
-const PREVIEWABLE = new Set(['docx', 'xlsx', 'pptx', 'text', 'markdown']);
+const PREVIEWABLE = new Set(['docx', 'xlsx', 'pptx', 'odf', 'rtf', 'html', 'text', 'markdown']);
 
 const ResultPanel: React.FC<{
   result: ConvertResult;

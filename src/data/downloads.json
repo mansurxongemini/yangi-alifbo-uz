@@ -1,0 +1,46 @@
+{
+  "version": "1.1.0",
+  "date": "2026-11-27",
+  "files": [
+    {
+      "id": "windows",
+      "os": "windows",
+      "label": "Windows",
+      "file": "ozbek-alifbosi-1.1.0-win-x64.zip",
+      "format": "ZIP (köçma)",
+      "size": 116880079,
+      "sha256": "441148a946a5c51658f0529dd7dcfabc1b00b938c510390d185cba8c30331273",
+      "url": "https://github.com/mansurxongemini/yangi-alifbo-uz/releases/download/v1.1.0/ozbek-alifbosi-1.1.0-win-x64.zip"
+    },
+    {
+      "id": "linux-appimage",
+      "os": "linux",
+      "label": "Linux",
+      "file": "ozbek-alifbosi-1.1.0-linux-x86_64.AppImage",
+      "format": "AppImage",
+      "size": 108969370,
+      "sha256": "d249c255fcb871c84ba3c56f6987a5e8405d0a944f5ef3ff2a977cff34a2cac3",
+      "url": "https://github.com/mansurxongemini/yangi-alifbo-uz/releases/download/v1.1.0/ozbek-alifbosi-1.1.0-linux-x86_64.AppImage"
+    },
+    {
+      "id": "linux-deb",
+      "os": "linux",
+      "label": "Ubuntu / Debian",
+      "file": "ozbek-alifbosi-1.1.0-linux-amd64.deb",
+      "format": ".deb",
+      "size": 85836740,
+      "sha256": "c51d4f4d549c2b092d3a8ae9ab68859c3a00d81f3e9740acecf5a8a54df8a451",
+      "url": "https://github.com/mansurxongemini/yangi-alifbo-uz/releases/download/v1.1.0/ozbek-alifbosi-1.1.0-linux-amd64.deb"
+    },
+    {
+      "id": "android",
+      "os": "android",
+      "label": "Android",
+      "file": "ozbek-alifbosi-1.1.0-android.apk",
+      "format": "APK",
+      "size": 4403363,
+      "sha256": "71726a3a246f69006eb9c1c8d2d49076e646617bbd7cc5850d5a927b2e2f50ba",
+      "url": "https://github.com/mansurxongemini/yangi-alifbo-uz/releases/download/v1.1.0/ozbek-alifbosi-1.1.0-android.apk"
+    }
+  ]
+}

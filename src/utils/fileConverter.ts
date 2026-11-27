@@ -23,9 +23,13 @@ import {
   Script,
 } from '../core/engine';
 
+import { convertMixed, mixedParagraphTexts, ODF_CFG, HTML_CFG } from './formats/mixed';
+import { convertRtfBytes, rtfParagraphs } from './formats/rtf';
+
 export type { Script };
 
-export type FileKind = 'docx' | 'xlsx' | 'pptx' | 'text' | 'markdown' | 'zip' | 'unsupported';
+export type FileKind =
+  | 'docx' | 'xlsx' | 'pptx' | 'odf' | 'rtf' | 'html' | 'text' | 'markdown' | 'zip' | 'archive' | 'unsupported';
 
 export type ItemStatus = 'converted' | 'unchanged' | 'skipped' | 'error';
 
@@ -64,7 +68,8 @@ export interface CancelSignal {
 export const MAX_FILE_SIZE = 1.5 * 1024 * 1024 * 1024; // 1.5 GB
 
 export const SUPPORTED_EXTENSIONS = [
-  '.docx', '.docm', '.dotx', '.xlsx', '.xlsm', '.pptx', '.txt', '.md', '.csv', '.zip',
+  '.docx', '.docm', '.dotx', '.xlsx', '.xlsm', '.pptx', '.odt', '.ott', '.ods', '.odp', '.rtf',
+  '.html', '.htm', '.txt', '.md', '.csv', '.srt', '.zip', '.rar', '.7z', '.tar', '.gz', '.tgz',
 ];
 export const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.join(',');
 
@@ -87,7 +92,11 @@ export const kindOf = (name: string): FileKind => {
   if (['pptx', 'pptm', 'ppsx', 'potx'].includes(ext)) return 'pptx';
   if (['txt', 'csv', 'tsv', 'srt'].includes(ext)) return 'text';
   if (['md', 'markdown'].includes(ext)) return 'markdown';
+  if (['odt', 'ott', 'ods', 'ots', 'odp', 'otp'].includes(ext)) return 'odf';
+  if (ext === 'rtf') return 'rtf';
+  if (['html', 'htm', 'xhtml'].includes(ext)) return 'html';
   if (ext === 'zip') return 'zip';
+  if (['rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'tbz2', 'txz'].includes(ext)) return 'archive';
   return 'unsupported';
 };
 
@@ -405,12 +414,84 @@ export const convertTextBytes = (
 // Bitta faylni oʻgirish
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ODF (LibreOffice: .odt, .ods, .odp)
+// ---------------------------------------------------------------------------
+
+const ODF_MIME: Record<string, string> = {
+  odt: 'application/vnd.oasis.opendocument.text',
+  ods: 'application/vnd.oasis.opendocument.spreadsheet',
+  odp: 'application/vnd.oasis.opendocument.presentation',
+};
+const ODF_PARTS = ['content.xml', 'styles.xml'];
+
+export const convertOdfBytes = async (
+  data: Uint8Array,
+  opts: ConvertOptions
+): Promise<{ data: Uint8Array; changed: boolean; stats: ConvertStats }> => {
+  if (!isZipMagic(data)) throw new Error('Fayl şikastlangan yoki haqiqiy OpenDocument hujjati emas.');
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(data);
+  } catch {
+    throw new Error('Fayl şikastlangan — oçib bölmadi.');
+  }
+  const manifest = await zip.file('META-INF/manifest.xml')?.async('string');
+  if (manifest && manifest.includes('encryption-data')) {
+    throw new Error('Hujjat parol bilan himoyalangan. Parolni olib taşlab, qayta saqlang.');
+  }
+  let stats = emptyStats();
+  let changed = false;
+  for (const part of ODF_PARTS) {
+    const entry = zip.file(part);
+    if (!entry) continue;
+    const xml = await entry.async('string');
+    const r = convertMixed(xml, ODF_CFG, opts);
+    stats = addStats(stats, r.stats);
+    if (r.out !== null) {
+      zip.file(part, r.out, { date: entry.date, createFolders: false });
+      changed = true;
+    }
+  }
+  if (!changed) return { data, changed: false, stats };
+  // ODF talabi: «mimetype» birinchi va siqilmagan holda turishi shart
+  const mt = zip.file('mimetype');
+  const mimeText = mt ? await mt.async('string') : ODF_MIME.odt;
+  if (mt) zip.file('mimetype', mimeText, { compression: 'STORE', date: mt.date });
+  const out = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE', compressionOptions: { level: 6 }, mimeType: mimeText });
+  return { data: out, changed: true, stats };
+};
+
+// ---------------------------------------------------------------------------
+// HTML
+// ---------------------------------------------------------------------------
+
+export const convertHtmlBytes = (
+  data: Uint8Array,
+  opts: ConvertOptions
+): { data: Uint8Array; changed: boolean; stats: ConvertStats } => {
+  const { text, encoding } = decodeTextBytes(data);
+  const r = convertMixed(text, HTML_CFG, opts);
+  if (r.out === null && encoding !== 'windows-1251') return { data, changed: false, stats: r.stats };
+  let out = r.out ?? text;
+  let enc: TextEncoding = encoding;
+  if (encoding === 'windows-1251') {
+    // CP1251 da yangi harflar yo'q — UTF-8 ga o'tkazamiz va charset ni ham yangilaymiz
+    out = out.replace(/(<meta\b[^>]*charset\s*=\s*["']?)(windows-1251|cp1251|x-cp1251)/gi, '$1utf-8');
+    enc = 'utf-8';
+  }
+  return { data: encodeTextBytes(out, enc), changed: r.out !== null, stats: r.stats };
+};
+
 const convertBytesByKind = async (
   data: Uint8Array,
   kind: FileKind,
   opts: ConvertOptions
 ): Promise<{ data: Uint8Array; changed: boolean; stats: ConvertStats }> => {
   if (kind === 'docx' || kind === 'xlsx' || kind === 'pptx') return convertOfficeBytes(data, kind, opts);
+  if (kind === 'odf') return convertOdfBytes(data, opts);
+  if (kind === 'rtf') return convertRtfBytes(data, opts);
+  if (kind === 'html') return convertHtmlBytes(data, opts);
   if (kind === 'text') return convertTextBytes(data, { ...opts, markdown: false });
   if (kind === 'markdown') return convertTextBytes(data, { ...opts, markdown: true });
   throw new Error('Qöllab-quvvatlanmaydigan format');
@@ -419,7 +500,10 @@ const convertBytesByKind = async (
 const mimeFor = (kind: FileKind): string => {
   if (kind === 'docx' || kind === 'xlsx' || kind === 'pptx') return MIME[kind];
   if (kind === 'markdown') return 'text/markdown;charset=utf-8';
-  if (kind === 'zip') return 'application/zip';
+  if (kind === 'odf') return 'application/vnd.oasis.opendocument.text';
+  if (kind === 'rtf') return 'application/rtf';
+  if (kind === 'html') return 'text/html;charset=utf-8';
+  if (kind === 'zip' || kind === 'archive') return 'application/zip';
   return 'text/plain;charset=utf-8';
 };
 
@@ -446,25 +530,25 @@ const isJunk = (path: string) => {
   return path.startsWith('__MACOSX/') || base === '.DS_Store' || base === 'Thumbs.db' || base.startsWith('~$');
 };
 
-const ALREADY_COMPRESSED = new Set(['docx', 'xlsx', 'pptx', 'zip']);
+const ALREADY_COMPRESSED = new Set(['docx', 'xlsx', 'pptx', 'odf', 'zip', 'archive']);
 
-export const convertArchiveBytes = async (
-  data: Uint8Array | Blob,
+interface SourceEntry {
+  path: string;
+  dir: boolean;
+  date?: Date;
+  read: () => Promise<Uint8Array>;
+  /** Arxivni ochib bo'lmagan bo'lsa — asl holida qo'shiladi va xato sifatida ko'rsatiladi */
+  error?: string;
+}
+
+/** Arxiv ichidagi fayllarni o'girib, yangi ZIP yig'adi (ZIP, RAR, 7z uchun umumiy). */
+const convertEntries = async (
+  entries: SourceEntry[],
   opts: ConvertOptions,
   onProgress?: ProgressFn,
   signal?: CancelSignal
 ): Promise<{ blob: Blob; report: ReportItem[]; stats: ConvertStats }> => {
-  onProgress?.({ phase: 'reading', done: 0, total: 0 });
-  let zip: JSZip;
-  try {
-    zip = await JSZip.loadAsync(data, { decodeFileName: decodeZipName });
-  } catch {
-    throw new Error('ZIP arxivni oçib bölmadi. Arxiv şikastlangan yoki parol bilan himoyalangan bölişi mumkin.');
-  }
-
-  const entries = Object.values(zip.files);
-  const fileEntries = entries.filter((e) => !e.dir);
-  const total = fileEntries.length;
+  const total = entries.filter((e) => !e.dir).length;
   const out = new JSZip();
   const report: ReportItem[] = [];
   let stats = emptyStats();
@@ -472,27 +556,32 @@ export const convertArchiveBytes = async (
 
   for (const entry of entries) {
     if (signal?.aborted) throw new CancelledError();
-    const path = entry.name;
+    const path = entry.path;
     if (entry.dir) {
       out.folder(path);
       continue;
     }
     onProgress?.({ phase: 'converting', done, total, current: path });
 
-    const raw = await entry.async('uint8array');
-    zip.remove(path); // xotirani boʻshatish
+    const raw = await entry.read();
+    if (entry.error) {
+      out.file(path, raw, { date: entry.date, binary: true, compression: 'STORE' });
+      report.push({ path, status: 'error', message: entry.error });
+      done++;
+      continue;
+    }
     const kind = isJunk(path) ? 'unsupported' : kindOf(path);
     const ext = kind === 'unsupported' ? '' : kind;
     const fileOpts = { date: entry.date, binary: true, compression: ALREADY_COMPRESSED.has(ext) ? 'STORE' : 'DEFLATE' } as const;
 
-    if (kind === 'unsupported' || kind === 'zip') {
+    if (kind === 'unsupported' || kind === 'zip' || kind === 'archive') {
       out.file(path, raw, fileOpts);
       report.push({
         path,
         status: 'skipped',
         message: isJunk(path)
           ? 'Tizim fayli — özgarişsiz'
-          : kind === 'zip'
+          : kind === 'zip' || kind === 'archive'
             ? 'Arxiv içidagi arxiv — alohida yuklang'
             : unsupportedMessage(path),
       });
@@ -527,6 +616,186 @@ export const convertArchiveBytes = async (
   return { blob, report, stats };
 };
 
+export const convertArchiveBytes = async (
+  data: Uint8Array | Blob,
+  opts: ConvertOptions,
+  onProgress?: ProgressFn,
+  signal?: CancelSignal
+): Promise<{ blob: Blob; report: ReportItem[]; stats: ConvertStats }> => {
+  onProgress?.({ phase: 'reading', done: 0, total: 0 });
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(data, { decodeFileName: decodeZipName });
+  } catch {
+    throw new Error('ZIP arxivni oçib bölmadi. Arxiv şikastlangan yoki parol bilan himoyalangan bölişi mumkin.');
+  }
+  const entries: SourceEntry[] = Object.values(zip.files).map((e) => ({
+    path: e.name,
+    dir: e.dir,
+    date: e.date,
+    read: async () => {
+      const d = await e.async('uint8array');
+      zip.remove(e.name); // xotirani boʻshatish
+      return d;
+    },
+  }));
+  return convertEntries(entries, opts, onProgress, signal);
+};
+
+// ---------------------------------------------------------------------------
+// Bir nechta fayl (va papkalar) bir vaqtda
+// ---------------------------------------------------------------------------
+
+/** Foydalanuvchi tanlagan fayl: `path` — papka ichidagi nisbiy yo'l (masalan, "Buyruqlar/1.docx"). */
+export interface InputItem {
+  blob: Blob;
+  path: string;
+}
+
+interface PlannedInput {
+  item: InputItem;
+  kind: FileKind;
+  /** Natija arxividagi yo'l (oddiy fayl) yoki papka nomi (arxiv ichidagilar shu papkaga) */
+  path: string;
+}
+
+const stripExt = (p: string) => p.replace(/(\.tar)?\.[^./]+$/i, '');
+
+/** Takroriy nomlarni ajratadi va arxivlar uchun papka nomini belgilaydi. Natija deterministik. */
+export const planInputs = (items: InputItem[]): PlannedInput[] => {
+  const used = new Set<string>();
+  const unique = (p: string) => {
+    if (!used.has(p.toLowerCase())) {
+      used.add(p.toLowerCase());
+      return p;
+    }
+    const dot = p.lastIndexOf('.');
+    const slash = p.lastIndexOf('/');
+    const [base, ext] = dot > slash + 0 && dot > 0 ? [p.slice(0, dot), p.slice(dot)] : [p, ''];
+    for (let k = 2; ; k++) {
+      const c = `${base} (${k})${ext}`;
+      if (!used.has(c.toLowerCase())) {
+        used.add(c.toLowerCase());
+        return c;
+      }
+    }
+  };
+  return items.map((item) => {
+    const clean = item.path.replace(/^\/+/, '').replace(/\\/g, '/');
+    const kind = kindOf(clean);
+    const isArch = kind === 'zip' || kind === 'archive';
+    return { item, kind, path: unique(isArch ? stripExt(clean) : clean) };
+  });
+};
+
+/** Natija arxivi nomi: hammasi bitta papkadan bo'lsa — o'sha papka nomi. */
+export const batchName = (items: InputItem[], to: Script): string => {
+  const tops = new Set(items.map((i) => (i.path.includes('/') ? i.path.split('/')[0] : '')));
+  const base = tops.size === 1 && [...tops][0] ? [...tops][0] : 'hujjatlar';
+  return outputName(`${base}.zip`, to);
+};
+
+export const convertMany = async (
+  items: InputItem[],
+  opts: ConvertOptions,
+  onProgress?: ProgressFn,
+  signal?: CancelSignal
+): Promise<ConvertResult> => {
+  const totalSize = items.reduce((a, i) => a + i.blob.size, 0);
+  if (totalSize > MAX_FILE_SIZE) {
+    throw new Error(`Fayllar jami juda katta (${formatFileSize(totalSize)}). Eng köpi bilan ${formatFileSize(MAX_FILE_SIZE)}. Bir neçta qismga bölib yuklang.`);
+  }
+  onProgress?.({ phase: 'reading', done: 0, total: 0 });
+  const entries: SourceEntry[] = [];
+  for (const pl of planInputs(items)) {
+    if (signal?.aborted) throw new CancelledError();
+    const date = pl.item.blob instanceof File ? new Date(pl.item.blob.lastModified) : undefined;
+    if (pl.kind === 'zip' || pl.kind === 'archive') {
+      try {
+        if (pl.kind === 'zip') {
+          const zip = await JSZip.loadAsync(pl.item.blob, { decodeFileName: decodeZipName });
+          for (const e of Object.values(zip.files)) {
+            entries.push({
+              path: `${pl.path}/${e.name}`,
+              dir: e.dir,
+              date: e.date,
+              read: async () => {
+                const d = await e.async('uint8array');
+                zip.remove(e.name);
+                return d;
+              },
+            });
+          }
+        } else {
+          const { extractWith7z } = await import('./formats/archive7z');
+          for (const f of await extractWith7z(pl.item.blob)) {
+            entries.push({ path: `${pl.path}/${f.path}`, dir: false, date: f.date, read: async () => f.data });
+          }
+        }
+      } catch (err) {
+        // Arxivni ochib bo'lmadi — asl holida qo'shamiz, qolgan fayllar davom etadi
+        entries.push({
+          path: pl.item.path.split('/').pop() === pl.item.path ? pl.item.path : pl.item.path,
+          dir: false,
+          date,
+          read: async () => new Uint8Array(await pl.item.blob.arrayBuffer()),
+          error: err instanceof Error ? err.message : 'Arxivni oçib bölmadi',
+        });
+      }
+    } else {
+      entries.push({ path: pl.path, dir: false, date, read: async () => new Uint8Array(await pl.item.blob.arrayBuffer()) });
+    }
+  }
+  const r = await convertEntries(entries, opts, onProgress, signal);
+  return {
+    blob: r.blob,
+    filename: batchName(items, opts.to),
+    originalName: `${items.length} ta fayl`,
+    originalSize: totalSize,
+    isArchive: true,
+    report: r.report,
+    stats: r.stats,
+  };
+};
+
+/** Bitta fayl — o'z formatida qaytadi; bir nechta fayl yoki papka — bitta ZIP. */
+export const convertInputs = (
+  items: InputItem[],
+  opts: ConvertOptions,
+  onProgress?: ProgressFn,
+  signal?: CancelSignal
+): Promise<ConvertResult> =>
+  items.length === 1 && !items[0].path.includes('/')
+    ? convertFile(items[0].blob, items[0].path, opts, onProgress, signal)
+    : convertMany(items, opts, onProgress, signal);
+
+/** Natija arxividagi yo'l bo'yicha asl faylni topib o'qiydi (ko'rish uchun). */
+export const readInputEntry = async (items: InputItem[], path: string): Promise<Uint8Array> => {
+  for (const pl of planInputs(items)) {
+    if ((pl.kind === 'zip' || pl.kind === 'archive') && path.startsWith(pl.path + '/')) {
+      const name = pl.item.path.split('/').pop() || pl.item.path;
+      return readArchiveEntry(pl.item.blob, name, path.slice(pl.path.length + 1));
+    }
+    if (pl.path === path) return new Uint8Array(await pl.item.blob.arrayBuffer());
+  }
+  throw new Error('Fayl topilmadi');
+};
+
+/** RAR, 7z, TAR, GZ — 7-Zip (WASM) bilan ochiladi, natija ZIP bo'ladi. */
+export const convertOtherArchive = async (
+  file: Blob,
+  opts: ConvertOptions,
+  onProgress?: ProgressFn,
+  signal?: CancelSignal
+): Promise<{ blob: Blob; report: ReportItem[]; stats: ConvertStats }> => {
+  onProgress?.({ phase: 'reading', done: 0, total: 0 });
+  const { extractWith7z } = await import('./formats/archive7z');
+  const files = await extractWith7z(file);
+  if (signal?.aborted) throw new CancelledError();
+  const entries: SourceEntry[] = files.map((f) => ({ path: f.path, dir: false, date: f.date, read: async () => f.data }));
+  return convertEntries(entries, opts, onProgress, signal);
+};
+
 // ---------------------------------------------------------------------------
 // Umumiy kirish nuqtasi
 // ---------------------------------------------------------------------------
@@ -542,10 +811,11 @@ export const convertFile = async (
     throw new Error(`Fayl juda katta (${formatFileSize(file.size)}). Eng köpi bilan ${formatFileSize(MAX_FILE_SIZE)}. Arxivni bir neçta qismga bölib yuklang.`);
   }
   const kind = kindOf(name);
-  const filename = outputName(name, opts.to);
+  // RAR/7z natijasi ZIP bo'ladi
+  const filename = kind === 'archive' ? outputName(name.replace(/(\.tar)?\.[^.]+$/i, '') + '.zip', opts.to) : outputName(name, opts.to);
 
-  if (kind === 'zip') {
-    const r = await convertArchiveBytes(file, opts, onProgress, signal);
+  if (kind === 'zip' || kind === 'archive') {
+    const r = kind === 'zip' ? await convertArchiveBytes(file, opts, onProgress, signal) : await convertOtherArchive(file, opts, onProgress, signal);
     return {
       blob: r.blob,
       filename,
@@ -628,12 +898,43 @@ export const buildPreview = async (data: Uint8Array, name: string, opts: Convert
     const r = await convertOfficeBytes(data, kind, markOpts);
     return { type: 'paragraphs', marked: await officeParagraphs(r.data, kind), original: await officeParagraphs(data, kind), originals };
   }
+  if (kind === 'odf') {
+    const r = await convertOdfBytes(data, markOpts);
+    const paras = async (d: Uint8Array) => {
+      const zip = await JSZip.loadAsync(d);
+      const out: string[] = [];
+      for (const part of ['content.xml']) {
+        const xml = await zip.file(part)?.async('string');
+        if (xml) out.push(...mixedParagraphTexts(xml, ODF_CFG));
+      }
+      return out;
+    };
+    return { type: 'paragraphs', marked: await paras(r.data), original: await paras(data), originals };
+  }
+  if (kind === 'rtf') {
+    const r = convertRtfBytes(data, markOpts);
+    return { type: 'paragraphs', marked: rtfParagraphs(r.data), original: rtfParagraphs(data), originals };
+  }
+  if (kind === 'html') {
+    const { text } = decodeTextBytes(data);
+    const marked = convertMixed(text, HTML_CFG, markOpts).out ?? text;
+    return { type: 'paragraphs', marked: mixedParagraphTexts(marked, HTML_CFG), original: mixedParagraphTexts(text, HTML_CFG), originals };
+  }
   if (kind === 'text' || kind === 'markdown') {
     const { text } = decodeTextBytes(data);
     const marked = convertTextWithStats(text, { ...markOpts, markdown: kind === 'markdown' }).text;
     return { type: 'text', marked, original: text, originals, markdown: kind === 'markdown' };
   }
   throw new Error('Bu fayl turini körib bölmaydi.');
+};
+
+/** Asl (yuklangan) arxiv ichidan bitta faylni oʻqish: ZIP — JSZip, RAR/7z — 7-Zip. */
+export const readArchiveEntry = async (archive: Blob, name: string, path: string): Promise<Uint8Array> => {
+  if (kindOf(name) !== 'archive') return readZipEntry(archive, path);
+  const { extractWith7z } = await import('./formats/archive7z');
+  const hit = (await extractWith7z(archive)).find((e) => e.path === path);
+  if (!hit) throw new Error('Fayl arxivda topilmadi');
+  return hit.data;
 };
 
 /** Asl (yuklangan) ZIP ichidan bitta faylni oʻqish. */

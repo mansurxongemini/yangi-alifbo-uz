@@ -9,7 +9,8 @@ import tailwindcss from '@tailwindcss/vite';
  */
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  // 'wasm-unsafe-eval' — faqat RAR/7z ochuvchi 7-Zip (WebAssembly) uchun; tashqi ulanishlar baribir taqiqlangan
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
